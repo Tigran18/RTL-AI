@@ -15,7 +15,7 @@ int main() {
         {1}
     };
 
-    network net(3, {2, 3, 1}, 0.9, 4000); 
+    network net({2, 10, 5, 1}, 0.9, 1000); 
 
     net.train(inputs, targets);
 

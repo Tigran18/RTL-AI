@@ -30,8 +30,9 @@ double network::neuron::sigmoid_derivative() const {
     return m_output * (1.0 - m_output);
 }
 
-network::network(size_t layers, std::vector<size_t> number_of_neurons_per_layer, double learning_rate, size_t epochs)
-    : m_layers(layers), m_number_of_neurons_per_layer(number_of_neurons_per_layer), m_learning_rate(learning_rate), m_epochs(epochs) {
+network::network(std::vector<size_t> number_of_neurons_per_layer, double learning_rate, size_t epochs)
+    : m_number_of_neurons_per_layer(number_of_neurons_per_layer), m_learning_rate(learning_rate), m_epochs(epochs) {
+    m_layers=number_of_neurons_per_layer.size();
     for (size_t layer = 0; layer < m_layers; ++layer) {
         m_neurons.push_back(std::vector<neuron>());
         size_t prev_layer_size = (layer == 0) ? 0 : m_number_of_neurons_per_layer[layer - 1];
