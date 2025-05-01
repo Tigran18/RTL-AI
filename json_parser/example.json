@@ -1,0 +1,15 @@
+{
+    "users": [
+      {
+        "id": 1,
+        
+        "isActive": true
+      },
+      {
+        "id": 2,
+        "name": "Bob Johnson",
+        "email": "bob@example.com",
+        "isActive": false
+      }
+    ]
+}

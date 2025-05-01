@@ -30,11 +30,9 @@ private:
 
 public:
     network(std::vector<size_t> number_of_neurons_per_layer = {}, double learning_rate = 0.1, size_t epochs = 4000);
-
     void forward_propagate(const std::vector<double>& input_values);
     void backpropagate(const std::vector<double>& target_values);
     void train(const std::vector<std::vector<double>>& inputs, const std::vector<std::vector<double>>& targets);
     std::vector<double> predict(const std::vector<double>& input);
     void display_outputs() const;
 };
-    
