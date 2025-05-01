@@ -15,14 +15,14 @@ int main() {
         {1}
     };
 
-    network net({2, 10, 5, 1}, 0.9, 1000); 
+    network net({2, 15, 20, 1}, 0.1, 20000); 
 
     net.train(inputs, targets);
 
     std::cout << "\nTesting network after training:\n";
     for (size_t i = 0; i < inputs.size(); ++i) {
-        net.forward_propagate(inputs[i]);
-        std::cout << "Input (" << inputs[i][0] << ", " << inputs[i][1] << ") -> ";
+        auto output = net.predict(inputs[i]);
+        std::cout << "Input (" << inputs[i][0] << ", " << inputs[i][1] << ") -> " << output[0] << std::endl;
         net.display_outputs();
     }
 
