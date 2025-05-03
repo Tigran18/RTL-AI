@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -flto -shared  -o ai_module.cpython-312-x86_64-linux-gnu.so CMakeFiles/ai_module.dir/bindings.cpp.o  network/libnetwork.a json_parser/libjson_parser.a 

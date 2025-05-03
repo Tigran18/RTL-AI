@@ -1,0 +1,9 @@
+/home/tigranda1809/RTL AI/build/CMakeFiles/ai_module.dir
+/home/tigranda1809/RTL AI/build/CMakeFiles/edit_cache.dir
+/home/tigranda1809/RTL AI/build/CMakeFiles/rebuild_cache.dir
+/home/tigranda1809/RTL AI/build/network/CMakeFiles/network.dir
+/home/tigranda1809/RTL AI/build/network/CMakeFiles/edit_cache.dir
+/home/tigranda1809/RTL AI/build/network/CMakeFiles/rebuild_cache.dir
+/home/tigranda1809/RTL AI/build/json_parser/CMakeFiles/json_parser.dir
+/home/tigranda1809/RTL AI/build/json_parser/CMakeFiles/edit_cache.dir
+/home/tigranda1809/RTL AI/build/json_parser/CMakeFiles/rebuild_cache.dir
