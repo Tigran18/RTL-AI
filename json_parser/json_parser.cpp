@@ -197,3 +197,41 @@ void JSON::print(int tab = 2) const {
 void JSON::add(const std::string& key, const JSONvalue& val){
     elements[key]=val;
 }
+
+const JSONvalue& JSON::operator[](const std::string& key) const {
+    return elements.at(key);    
+}
+
+std::ostream& operator<<(std::ostream& os, const JSONvalue& val) {
+    std::visit([&os](auto&& arg) {
+        os << arg;
+    }, val);
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const JSON& json) {
+    os << "{ ";
+    bool first = true;
+    for (const auto& [key, value] : json.elements) {
+        if (!first) os << ", ";
+        first = false;
+        os << "\"" << key << "\": " << value;
+    }
+    os << " }";
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const std::vector<JSONvalues_for_vector>& vec) {
+    os << "[";
+    for (size_t i = 0; i < vec.size(); ++i) {
+        std::visit([&os](auto&& arg) {
+            os << arg;
+        }, vec[i]);
+
+        if (i + 1 < vec.size()) {
+            os << ", ";
+        }
+    }
+    os << "]";
+    return os;
+}

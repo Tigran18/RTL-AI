@@ -136,3 +136,60 @@ void network::display_outputs() const {
         std::cout << std::endl;
     }
 }
+
+void network::save_model(const std::string& filename) const {
+    std::ofstream out(filename);
+    if (!out) {
+        throw std::runtime_error("Failed to open file for saving model.");
+    }
+
+    out << m_layers << "\n";
+    for (size_t n : m_number_of_neurons_per_layer) {
+        out << n << " ";
+    }
+    out << "\n";
+
+    for (const auto& layer : m_neurons) {
+        for (const auto& neuron : layer) {
+            out << neuron.m_bias << " ";
+            for (double w : neuron.m_weights) {
+                out << w << " ";
+            }
+            out << "\n";
+        }
+    }
+
+    out.close();
+}
+
+void network::load_model(const std::string& filename) {
+    std::ifstream in(filename);
+    if (!in) {
+        throw std::runtime_error("Failed to open file for loading model.");
+    }
+
+    in >> m_layers;
+    m_number_of_neurons_per_layer.resize(m_layers);
+    for (size_t i = 0; i < m_layers; ++i) {
+        in >> m_number_of_neurons_per_layer[i];
+    }
+
+    m_neurons.clear();
+    std::mt19937 gen(std::random_device{}());
+
+    for (size_t layer = 0; layer < m_layers; ++layer) {
+        size_t prev_layer_size = (layer == 0) ? 0 : m_number_of_neurons_per_layer[layer - 1];
+        std::vector<neuron> layer_neurons;
+        for (size_t j = 0; j < m_number_of_neurons_per_layer[layer]; ++j) {
+            neuron n(prev_layer_size, gen);
+            in >> n.m_bias;
+            for (size_t k = 0; k < prev_layer_size; ++k) {
+                in >> n.m_weights[k];
+            }
+            layer_neurons.push_back(n);
+        }
+        m_neurons.push_back(layer_neurons);
+    }
+
+    in.close();
+}

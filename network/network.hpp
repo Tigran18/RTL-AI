@@ -3,6 +3,8 @@
 #include <iostream>
 #include <random>
 #include <cmath>
+#include <fstream>
+#include <stdexcept>
 
 class network {
 private:
@@ -35,4 +37,6 @@ public:
     void train(const std::vector<std::vector<double>>& inputs, const std::vector<std::vector<double>>& targets);
     std::vector<double> predict(const std::vector<double>& input);
     void display_outputs() const;
+    void save_model(const std::string& filename) const;
+    void load_model(const std::string& filename);
 };
