@@ -12,10 +12,9 @@ PYBIND11_MODULE(ai_module, m) {
         .def("predict", &network::predict)
         .def("save_model", &network::save_model)
         .def("load_model", &network::load_model)
-        .def("display_outputs", &network::display_outputs)
-        .def("forward_propagate", &network::forward_propagate);
+        .def("display_outputs", &network::display_outputs);
     py::class_<JSON>(m, "JSON")
-        .def(py::init<const std::string&, bool>())
+        .def(py::init<const std::string&>())
         .def("print", &JSON::print);
 }
 

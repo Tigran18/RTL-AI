@@ -1,15 +1,45 @@
 {
-    "users": [
-      {
-        "id": 1,
-        
-        "isActive": true
+  "module": "Summator4Bit",
+  "description": "4-bit Summator with carry-out",
+  "inputs": {
+    "A": {
+      "width": 4,
+      "type": "input"
+    },
+    "B": {
+      "width": 4,
+      "type": "input"
+    }
+  },
+  "outputs": {
+    "Sum": {
+      "width": 4,
+      "type": "output"
+    },
+    "CarryOut": {
+      "width": 1,
+      "type": "output"
+    }
+  },
+  "internal_wires": {
+    "C": {
+      "width": 5
+    }
+  },
+  "operations": [
+    {
+      "op": "add",
+      "inputs": ["A", "B"],
+      "output": "Sum"
+    },
+    {
+      "op": "mux",
+      "select": "C[4]",
+      "cases": {
+        "0": "Sum",
+        "1": "CarryOut"
       },
-      {
-        "id": 2,
-        "name": "Bob Johnson",
-        "email": "bob@example.com",
-        "isActive": false
-      }
-    ]
+      "output": "CarryOut"
+    }
+  ]
 }

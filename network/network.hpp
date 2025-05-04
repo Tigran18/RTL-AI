@@ -26,7 +26,7 @@ private:
 
     size_t m_layers;
     std::vector<size_t> m_number_of_neurons_per_layer;
-    std::vector<std::vector<neuron>> m_neurons;
+    std::vector<std::vector<neuron>> m_network;
     double m_learning_rate;
     size_t m_epochs;
 
