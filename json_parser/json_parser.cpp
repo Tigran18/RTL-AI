@@ -159,6 +159,165 @@ void JSON::print_value(const JSONvalue& val, int tab = 2) const {
     }
 }
 
+template<typename T>
+struct always_false : std::false_type {};
+
+void JSON::print_rtl() const {
+    // Lambda definitions for operation handlers
+    using OpHandler = std::function<void(const JSON&)>;
+    std::map<std::string, OpHandler> handlers;
+
+    // Helper to get string from JSONvalue
+    // Accept both JSONvalue and JSONvalues_for_vector
+    auto get_str = [](const auto& val) -> std::string {
+        using T = std::decay_t<decltype(val)>;
+        if constexpr (std::is_same_v<T, JSONvalue>) {
+            return std::get<std::string>(val);
+        } else if constexpr (std::is_same_v<T, JSONvalues_for_vector>) {
+            return std::get<std::string>(val); // assuming it's a string inside the variant
+        } else {
+            static_assert(always_false<T>::value, "Unsupported type for get_str");
+        }
+    };
+
+
+    auto get_inputs = [](const JSON& obj) {
+        return std::get<std::vector<JSONvalues_for_vector>>(obj["inputs"]);
+    };
+
+    // Handlers for different op types
+    handlers["add"] = [&](const JSON& obj) {
+        auto in = get_inputs(obj);
+        std::cout << "assign " << get_str(obj["output"]) << " = " 
+                  << get_str(in[0]) << " + " << get_str(in[1]) << ";\n";
+    };
+
+    handlers["sub"] = [&](const JSON& obj) {
+        auto in = get_inputs(obj);
+        std::cout << "assign " << get_str(obj["output"]) << " = " 
+                  << get_str(in[0]) << " - " << get_str(in[1]) << ";\n";
+    };
+
+    handlers["and"] = [&](const JSON& obj) {
+        auto in = get_inputs(obj);
+        std::cout << "assign " << get_str(obj["output"]) << " = " 
+                  << get_str(in[0]) << " & " << get_str(in[1]) << ";\n";
+    };
+
+    handlers["or"] = [&](const JSON& obj) {
+        auto in = get_inputs(obj);
+        std::cout << "assign " << get_str(obj["output"]) << " = " 
+                  << get_str(in[0]) << " | " << get_str(in[1]) << ";\n";
+    };
+
+    handlers["eq"] = [&](const JSON& obj) {
+        auto in = get_inputs(obj);
+        std::cout << "assign " << get_str(obj["output"]) << " = " 
+                  << get_str(in[0]) << " == " << get_str(in[1]) << ";\n";
+    };
+
+    handlers["lt"] = [&](const JSON& obj) {
+        auto in = get_inputs(obj);
+        std::cout << "assign " << get_str(obj["output"]) << " = " 
+                  << get_str(in[0]) << " < " << get_str(in[1]) << ";\n";
+    };
+
+    handlers["gt"] = [&](const JSON& obj) {
+        auto in = get_inputs(obj);
+        std::cout << "assign " << get_str(obj["output"]) << " = " 
+                  << get_str(in[0]) << " > " << get_str(in[1]) << ";\n";
+    };
+
+    handlers["assign"] = [&](const JSON& obj) {
+        std::cout << "assign " << get_str(obj["output"]) << " = "
+                  << get_str(obj["input"]) << ";\n";
+    };
+
+    handlers["mux"] = [&](const JSON& obj) {
+        std::string select = get_str(obj["select"]);
+        std::string output = get_str(obj["output"]);
+        const auto& cases_obj = std::get<JSON>(obj["cases"]);
+        std::cout << "always @(*) begin\n";
+        std::cout << "  case (" << select << ")\n";
+        for (const auto& [key, val] : cases_obj.elements) {
+            std::cout << "    " << key << ": " << output << " = " << get_str(val) << ";\n";
+        }
+        std::cout << "  endcase\n";
+        std::cout << "end\n";
+    };
+
+    handlers["zero_check"] = [&](const JSON& obj) {
+        std::string in = get_str(obj["input"]);
+        std::string out = get_str(obj["output"]);
+        std::cout << "assign " << out << " = (" << in << " == 0);\n";
+    };
+
+    // Emit module declaration
+    std::string moduleName = get_str(elements.at("module"));
+    const auto& inputs = std::get<JSON>(elements.at("inputs"));
+    const auto& outputs = std::get<JSON>(elements.at("outputs"));
+
+    std::cout << "module " << moduleName << " (\n";
+
+    std::vector<std::string> ports;
+    for (const auto& [name, val] : inputs.elements)
+        ports.push_back(name);
+    for (const auto& [name, val] : outputs.elements)
+        ports.push_back(name);
+
+    for (size_t i = 0; i < ports.size(); ++i) {
+        std::cout << "    " << ports[i];
+        if (i != ports.size() - 1) std::cout << ",";
+        std::cout << "\n";
+    }
+    std::cout << ");\n\n";
+
+    // Declare inputs and outputs
+    auto declare_ports = [&](const JSON& port_block, const std::string& dir) {
+        for (const auto& [name, val] : port_block.elements) {
+            const auto& width = std::get<int>(std::get<JSON>(val).elements.at("width"));
+            std::cout << dir << " ";
+            if (width > 1) std::cout << "[" << (width - 1) << ":0] ";
+            std::cout << name << ";\n";
+        }
+    };
+
+    declare_ports(inputs, "input");
+    declare_ports(outputs, "output");
+
+    // Internal wires
+    if (elements.count("internal_wires")) {
+        const auto& wires = std::get<JSON>(elements.at("internal_wires"));
+        for (const auto& [name, val] : wires.elements) {
+            int width = std::get<int>(std::get<JSON>(val).elements.at("width"));
+            std::cout << "wire ";
+            if (width > 1) std::cout << "[" << (width - 1) << ":0] ";
+            std::cout << name << ";\n";
+        }
+    }
+
+    std::cout << "\n";
+
+    // Operations
+    if (elements.count("operations")) {
+        const auto& ops = std::get<std::vector<JSONvalues_for_vector>>(elements.at("operations"));
+        for (const auto& op_val : ops) {
+            const auto& op_json = std::get<JSON>(op_val);
+            std::string op_type = get_str(op_json["op"]);
+
+            if (handlers.count(op_type)) {
+                handlers[op_type](op_json);
+            } else {
+                std::cerr << "// Warning: Unknown operation '" << op_type << "' skipped.\n";
+            }
+        }
+    }
+
+    std::cout << "endmodule\n";
+}
+
+
+
 JSON::JSON(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {

@@ -1,5 +1,0 @@
-{
-    "inputs": ["2-bit full adder with carry input and carry output"],
-    "targets": ["module full_adder (...); ... endmodule"]
-}
-  

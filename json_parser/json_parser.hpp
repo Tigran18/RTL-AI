@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <variant>
 #include <vector>
+#include <functional>
+#include <sstream>
 
 class JSON;
 
@@ -34,6 +36,9 @@ public:
     JSON(const std::string& raw_content, bool isRawString);
     
     void print(int tab) const;
+
+    void print_rtl() const;
+
     void add(const std::string& key, const JSONvalue& val);
 
     const JSONvalue& operator[](const std::string& key) const;
