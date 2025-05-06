@@ -381,4 +381,5 @@ CMakeFiles/ai_module.dir/bindings.cpp.o: \
  /usr/include/x86_64-linux-gnu/c++/13/bits/basic_file.h \
  /usr/include/x86_64-linux-gnu/c++/13/bits/c++io.h \
  /usr/include/c++/13/bits/fstream.tcc \
- /home/tigranda1809/RTL\ AI/json_parser/json_parser.hpp
+ /home/tigranda1809/RTL\ AI/json_parser/json_parser.hpp \
+ /usr/include/c++/13/sstream /usr/include/c++/13/bits/sstream.tcc
