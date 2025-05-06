@@ -1,4 +1,0 @@
-{
-    "multiplexer": "module mux_{bits}bit(input [{bits_minus_one}:0] A, input [{bits_minus_one}:0] B, input SEL, output [{bits_minus_one}:0] Y);\n    assign Y = SEL ? B : A;\nendmodule",
-    "adder": "module adder_{bits}bit(input [{bits_minus_one}:0] A, input [{bits_minus_one}:0] B, output [{bits_minus_one}:0] SUM);\n    assign SUM = A + B;\nendmodule"
-}
