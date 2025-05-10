@@ -229,6 +229,15 @@ PYTHON_EXECUTABLE:FILEPATH=/home/tigranda1809/RTL AI/myenv/bin/python
 PYTHON_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libpython3.12.so
 
 //Value Computed by CMake
+RTL_AI_BINARY_DIR:STATIC=/home/tigranda1809/RTL AI/build
+
+//Value Computed by CMake
+RTL_AI_IS_TOP_LEVEL:STATIC=ON
+
+//Value Computed by CMake
+RTL_AI_SOURCE_DIR:STATIC=/home/tigranda1809/RTL AI
+
+//Value Computed by CMake
 ai_module_BINARY_DIR:STATIC=/home/tigranda1809/RTL AI/build
 
 //Value Computed by CMake
