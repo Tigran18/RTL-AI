@@ -6,10 +6,8 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
-  /usr/include/c++/13/algorithm \
   /usr/include/c++/13/backward/binders.h \
   /usr/include/c++/13/bit \
-  /usr/include/c++/13/bits/algorithmfwd.h \
   /usr/include/c++/13/bits/alloc_traits.h \
   /usr/include/c++/13/bits/allocator.h \
   /usr/include/c++/13/bits/basic_ios.h \
@@ -18,6 +16,7 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
   /usr/include/c++/13/bits/basic_string.tcc \
   /usr/include/c++/13/bits/char_traits.h \
   /usr/include/c++/13/bits/charconv.h \
+  /usr/include/c++/13/bits/codecvt.h \
   /usr/include/c++/13/bits/concept_check.h \
   /usr/include/c++/13/bits/cpp_type_traits.h \
   /usr/include/c++/13/bits/cxxabi_forced.h \
@@ -25,6 +24,7 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
   /usr/include/c++/13/bits/exception.h \
   /usr/include/c++/13/bits/exception_defines.h \
   /usr/include/c++/13/bits/exception_ptr.h \
+  /usr/include/c++/13/bits/fstream.tcc \
   /usr/include/c++/13/bits/functexcept.h \
   /usr/include/c++/13/bits/functional_hash.h \
   /usr/include/c++/13/bits/hash_bytes.h \
@@ -53,18 +53,15 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
   /usr/include/c++/13/bits/requires_hosted.h \
   /usr/include/c++/13/bits/specfun.h \
   /usr/include/c++/13/bits/std_abs.h \
-  /usr/include/c++/13/bits/stl_algo.h \
   /usr/include/c++/13/bits/stl_algobase.h \
   /usr/include/c++/13/bits/stl_bvector.h \
   /usr/include/c++/13/bits/stl_construct.h \
   /usr/include/c++/13/bits/stl_function.h \
-  /usr/include/c++/13/bits/stl_heap.h \
   /usr/include/c++/13/bits/stl_iterator.h \
   /usr/include/c++/13/bits/stl_iterator_base_funcs.h \
   /usr/include/c++/13/bits/stl_iterator_base_types.h \
   /usr/include/c++/13/bits/stl_numeric.h \
   /usr/include/c++/13/bits/stl_pair.h \
-  /usr/include/c++/13/bits/stl_tempbuf.h \
   /usr/include/c++/13/bits/stl_uninitialized.h \
   /usr/include/c++/13/bits/stl_vector.h \
   /usr/include/c++/13/bits/streambuf.tcc \
@@ -94,6 +91,7 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
   /usr/include/c++/13/ext/numeric_traits.h \
   /usr/include/c++/13/ext/string_conversions.h \
   /usr/include/c++/13/ext/type_traits.h \
+  /usr/include/c++/13/fstream \
   /usr/include/c++/13/initializer_list \
   /usr/include/c++/13/ios \
   /usr/include/c++/13/iosfwd \
@@ -104,7 +102,6 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
   /usr/include/c++/13/numeric \
   /usr/include/c++/13/ostream \
   /usr/include/c++/13/pstl/execution_defs.h \
-  /usr/include/c++/13/pstl/glue_algorithm_defs.h \
   /usr/include/c++/13/pstl/glue_numeric_defs.h \
   /usr/include/c++/13/pstl/pstl_config.h \
   /usr/include/c++/13/random \
@@ -218,8 +215,10 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
   /usr/include/x86_64-linux-gnu/bits/wctype-wchar.h \
   /usr/include/x86_64-linux-gnu/bits/wordsize.h \
   /usr/include/x86_64-linux-gnu/c++/13/bits/atomic_word.h \
+  /usr/include/x86_64-linux-gnu/c++/13/bits/basic_file.h \
   /usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h \
   /usr/include/x86_64-linux-gnu/c++/13/bits/c++config.h \
+  /usr/include/x86_64-linux-gnu/c++/13/bits/c++io.h \
   /usr/include/x86_64-linux-gnu/c++/13/bits/c++locale.h \
   /usr/include/x86_64-linux-gnu/c++/13/bits/cpu_defines.h \
   /usr/include/x86_64-linux-gnu/c++/13/bits/ctype_base.h \
@@ -256,6 +255,10 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/x86_64-linux-gnu/c++/13/bits/ctype_base.h:
 
+/usr/include/x86_64-linux-gnu/c++/13/bits/c++io.h:
+
+/usr/include/x86_64-linux-gnu/c++/13/bits/basic_file.h:
+
 /usr/include/x86_64-linux-gnu/c++/13/bits/atomic_word.h:
 
 /usr/include/x86_64-linux-gnu/bits/waitflags.h:
@@ -267,6 +270,8 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h:
 
 /usr/include/x86_64-linux-gnu/bits/wctype-wchar.h:
 
@@ -322,6 +327,8 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/x86_64-linux-gnu/bits/iscanonical.h:
 
+/usr/include/x86_64-linux-gnu/bits/fp-logb.h:
+
 /usr/include/x86_64-linux-gnu/bits/fp-fast.h:
 
 /usr/include/x86_64-linux-gnu/c++/13/bits/c++allocator.h:
@@ -364,15 +371,13 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/features.h:
 
-/usr/include/ctype.h:
-
-/usr/include/c++/13/vector:
-
 /usr/include/c++/13/bits/stl_construct.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h:
 
 /usr/include/c++/13/bits/refwrap.h:
+
+/usr/include/c++/13/bits/fstream.tcc:
 
 /usr/include/c++/13/debug/debug.h:
 
@@ -388,9 +393,7 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/c++/13/bits/random.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h:
-
-/usr/include/c++/13/bits/stl_tempbuf.h:
+/usr/include/c++/13/bits/codecvt.h:
 
 /usr/include/c++/13/bits/stl_vector.h:
 
@@ -422,21 +425,25 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/c++/13/bits/locale_classes.h:
 
+/usr/include/ctype.h:
+
 /usr/include/x86_64-linux-gnu/bits/types/clock_t.h:
 
 /usr/include/c++/13/bits/char_traits.h:
 
-/usr/include/c++/13/bits/ostream.tcc:
-
-/usr/include/x86_64-linux-gnu/c++/13/bits/c++config.h:
-
-/usr/include/c++/13/bits/ios_base.h:
+/usr/include/c++/13/bits/stl_iterator_base_types.h:
 
 /usr/include/c++/13/bits/nested_exception.h:
 
 /usr/include/x86_64-linux-gnu/bits/time64.h:
 
 /usr/include/c++/13/bits/basic_ios.h:
+
+/usr/include/c++/13/bits/ostream.tcc:
+
+/usr/include/x86_64-linux-gnu/c++/13/bits/c++config.h:
+
+/usr/include/c++/13/bits/ios_base.h:
 
 /usr/include/c++/13/bits/move.h:
 
@@ -462,23 +469,15 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/c++/13/bits/functional_hash.h:
 
-/usr/include/x86_64-linux-gnu/c++/13/bits/os_defines.h:
-
-/usr/include/x86_64-linux-gnu/c++/13/bits/c++locale.h:
-
-/usr/include/c++/13/bits/ptr_traits.h:
-
-/usr/include/c++/13/bit:
-
-/usr/include/c++/13/bits/basic_string.tcc:
-
-/usr/include/alloca.h:
-
 /usr/include/c++/13/cwctype:
 
 /usr/include/c++/13/bits/predefined_ops.h:
 
 /usr/include/c++/13/iosfwd:
+
+/usr/include/c++/13/bits/stl_iterator_base_funcs.h:
+
+/usr/include/asm-generic/errno.h:
 
 /usr/include/c++/13/cwchar:
 
@@ -491,6 +490,18 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 /usr/include/features-time64.h:
 
 /usr/include/c++/13/string_view:
+
+/usr/include/alloca.h:
+
+/usr/include/c++/13/bit:
+
+/usr/include/c++/13/bits/basic_string.tcc:
+
+/usr/include/x86_64-linux-gnu/c++/13/bits/os_defines.h:
+
+/usr/include/x86_64-linux-gnu/c++/13/bits/c++locale.h:
+
+/usr/include/c++/13/bits/ptr_traits.h:
 
 /usr/include/wchar.h:
 
@@ -516,8 +527,6 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/c++/13/bits/exception.h:
 
-/usr/include/c++/13/bits/stl_heap.h:
-
 /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
 
 /usr/include/c++/13/bits/localefwd.h:
@@ -536,12 +545,6 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/c++/13/bits/cxxabi_forced.h:
 
-/usr/include/c++/13/algorithm:
-
-/usr/include/c++/13/random:
-
-/usr/include/c++/13/pstl/glue_numeric_defs.h:
-
 /usr/include/c++/13/bits/istream.tcc:
 
 /usr/include/c++/13/bits/exception_ptr.h:
@@ -549,14 +552,6 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 /usr/include/c++/13/bits/concept_check.h:
 
 /usr/include/c++/13/bits/alloc_traits.h:
-
-/usr/include/c++/13/new:
-
-/usr/include/c++/13/ext/alloc_traits.h:
-
-/usr/include/x86_64-linux-gnu/bits/fp-logb.h:
-
-/usr/include/c++/13/bits/algorithmfwd.h:
 
 /usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
 
@@ -566,21 +561,11 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/c++/13/ios:
 
-/usr/include/asm-generic/errno.h:
-
-/usr/include/c++/13/bits/stl_iterator_base_funcs.h:
-
-/usr/include/c++/13/bits/stl_iterator_base_types.h:
-
 /usr/include/x86_64-linux-gnu/bits/types/time_t.h:
 
 /usr/include/c++/13/bits/stl_numeric.h:
 
 /usr/include/c++/13/bits/stl_uninitialized.h:
-
-/usr/include/endian.h:
-
-/usr/include/c++/13/bits/streambuf.tcc:
 
 /usr/include/c++/13/bits/stringfwd.h:
 
@@ -624,15 +609,17 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
 
-/usr/include/c++/13/bits/stl_algo.h:
-
 /usr/include/c++/13/cstddef:
+
+/usr/include/c++/13/vector:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:
 
 /usr/include/c++/13/bits/charconv.h:
 
 /usr/include/c++/13/bits/stl_pair.h:
+
+/usr/include/c++/13/fstream:
 
 /usr/include/c++/13/cstdio:
 
@@ -664,6 +651,10 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/c++/13/limits:
 
+/usr/include/c++/13/ext/alloc_traits.h:
+
+/usr/include/c++/13/new:
+
 /usr/include/c++/13/numeric:
 
 /usr/include/x86_64-linux-gnu/c++/13/bits/gthr.h:
@@ -672,7 +663,9 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 
 /usr/include/c++/13/pstl/execution_defs.h:
 
-/usr/include/c++/13/pstl/glue_algorithm_defs.h:
+/usr/include/c++/13/random:
+
+/usr/include/c++/13/pstl/glue_numeric_defs.h:
 
 /usr/include/x86_64-linux-gnu/bits/wordsize.h:
 
@@ -713,3 +706,7 @@ network/CMakeFiles/network.dir/network.cpp.o: /home/tigranda1809/RTL\ AI/network
 /usr/include/c++/13/ostream:
 
 /usr/include/c++/13/tr1/riemann_zeta.tcc:
+
+/usr/include/c++/13/bits/streambuf.tcc:
+
+/usr/include/endian.h:
