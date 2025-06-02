@@ -1,41 +1,48 @@
 #include "network.hpp"
 #include <iostream>
-#include <filesystem>
+
+void train_xor_example() {
+    std::vector<size_t> layers = {2, 3, 1};
+    // std::vector<network::ActivationType> activations = {
+    //     network::ActivationType::ReLU,
+    //     network::ActivationType::Sigmoid
+    // };
+    network net(layers, {1, 0}, 0.1, 10000, 2, 0.9);
+    std::vector<std::vector<double>> inputs = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
+    std::vector<std::vector<double>> targets = {{0}, {1}, {1}, {0}};
+    std::cout << "Training XOR network...\n";
+    net.train(inputs, targets);
+    std::cout << "\nPredictions:\n";
+    for (const auto& input : inputs) {
+        auto output = net.predict(input);
+        std::cout << "Input: [" << input[0] << ", " << input[1] << "] -> Output: " << output[0] << "\n";
+    }
+    net.save_model("xor_model.txt");
+}
+
+void test_load_and_predict() {
+    std::vector<size_t> layers = {2, 3, 1};
+    // std::vector<network::ActivationType> activations = {
+    //     network::ActivationType::ReLU,
+    //     network::ActivationType::Sigmoid
+    // };
+    network net(layers, {1, 0}, 0.1, 10000, 2, 0.9);
+    net.load_model("xor_model.txt");
+    std::vector<std::vector<double>> inputs = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
+    std::cout << "\nPredictions from loaded model:\n";
+    for (const auto& input : inputs) {
+        auto output = net.predict(input);
+        std::cout << "Input: [" << input[0] << ", " << input[1] << "] -> Output: " << output[0] << "\n";
+    }
+}
 
 int main() {
-    std::vector<std::vector<double>> inputs = {
-        {0, 0},
-        {0, 1},
-        {1, 0},
-        {1, 1}
-    };
-
-    std::vector<std::vector<double>> targets = {
-        {0},
-        {1},
-        {1},
-        {0}
-    };
-
-    network net({2, 15, 20, 1}, 0.1, 20000);
-
-    const std::string model_file = "xor_model.txt";
-
-    if (std::filesystem::exists(model_file)) {
-        std::cout << "Loading saved model from file...\n";
-        net.load_model(model_file);
-    } else {
-        std::cout << "Training model...\n";
-        net.train(inputs, targets);
-        net.save_model(model_file);
-        std::cout << "Model saved to file.\n";
+    try {
+        test_load_and_predict();
+        train_xor_example();
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
     }
-
-    std::cout << "\nTesting network:\n";
-    for (size_t i = 0; i < inputs.size(); ++i) {
-        auto output = net.predict(inputs[i]);
-        std::cout << "Input (" << inputs[i][0] << ", " << inputs[i][1] << ") -> " << output[0] << std::endl;
-    }
-
     return 0;
 }
