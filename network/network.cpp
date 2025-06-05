@@ -37,7 +37,7 @@ double network::neuron::activate_derivative(double x, ActivationType type) const
             return sig * (1.0 - sig);
         }
         case ActivationType::ReLU:
-            return x > 0 ? 1 : 0.0;
+            return x > 0 ? 1.0 : 0.0;
         case ActivationType::Tanh: {
             double tanh_x = std::tanh(x);
             return 1.0 - tanh_x * tanh_x;
@@ -59,11 +59,11 @@ double network::neuron::compute_output(ActivationType type) {
 }
 
 network::network(std::vector<size_t> number_of_neurons_per_layer,
-                std::vector<int> activations,
+                std::vector<ActivationType> activations,
                 double learning_rate, size_t epochs, size_t batch_size, double momentum)
     : m_number_of_neurons_per_layer(number_of_neurons_per_layer),
       m_learning_rate(learning_rate), m_epochs(epochs), m_batch_size(batch_size),
-      m_momentum(momentum) {
+      m_momentum(momentum), m_activations(activations) {
     m_layers = number_of_neurons_per_layer.size();
     if (m_batch_size == 0) {
         throw std::invalid_argument("Batch size must be greater than 0");
@@ -73,9 +73,6 @@ network::network(std::vector<size_t> number_of_neurons_per_layer,
     }
     if (activations.size() != m_layers - 1) {
         throw std::invalid_argument("Number of activations must match number of non-input layers");
-    }
-    for(size_t layer = 0; layer<m_layers-1; ++layer){
-        m_activations.push_back(static_cast<ActivationType>(activations[layer]));
     }
     std::mt19937 gen(std::random_device{}());
     for (size_t layer = 0; layer < m_layers; ++layer) {
@@ -116,7 +113,7 @@ void network::backpropagate(const std::vector<double>& target_values) {
         output_layer[i].m_delta = error * output_layer[i].activate_derivative(
             output_layer[i].m_z, m_activations[m_layers - 2]);
     }
-    for (int layer = static_cast<int>(m_layers) - 2; layer >= 0; --layer) {
+    for (int layer = static_cast<int>(m_layers) - 2; layer > 0; --layer) {
         for (size_t i = 0; i < m_network[layer].size(); ++i) {
             double error = 0.0;
             for (const auto& next_neuron : m_network[layer + 1]) {
@@ -129,9 +126,14 @@ void network::backpropagate(const std::vector<double>& target_values) {
 }
 
 void network::train(const std::vector<std::vector<double>>& inputs,
-                    const std::vector<std::vector<double>>& targets) {
+                    const std::vector<std::vector<double>>& targets,
+                    const std::vector<std::vector<double>>& val_inputs,
+                    const std::vector<std::vector<double>>& val_targets) {
     if (inputs.size() != targets.size()) {
         throw std::invalid_argument("Number of inputs must match number of targets");
+    }
+    if (!val_inputs.empty() && val_inputs.size() != val_targets.size()) {
+        throw std::invalid_argument("Number of validation inputs must match number of validation targets");
     }
     if (inputs.empty()) {
         return;
@@ -190,10 +192,35 @@ void network::train(const std::vector<std::vector<double>>& inputs,
                 }
             }
         }
+        total_error /= inputs.size();
+        double val_error = val_inputs.empty() ? 0.0 : evaluate(val_inputs, val_targets);
         if (epoch % 100 == 0 || epoch == m_epochs - 1) {
-            std::cout << "Epoch " << epoch << ", MSE: " << total_error / inputs.size() << std::endl;
+            std::cout << "Epoch " << epoch << ", Train MSE: " << total_error;
+            if (!val_inputs.empty()) {
+                std::cout << ", Validation MSE: " << val_error;
+            }
+            std::cout << std::endl;
         }
     }
+}
+
+double network::evaluate(const std::vector<std::vector<double>>& inputs,
+                        const std::vector<std::vector<double>>& targets) {
+    if (inputs.size() != targets.size()) {
+        throw std::invalid_argument("Number of inputs must match number of targets");
+    }
+    if (inputs.empty()) {
+        return 0.0;
+    }
+    double total_error = 0.0;
+    for (size_t i = 0; i < inputs.size(); ++i) {
+        auto output = predict(inputs[i]);
+        for (size_t j = 0; j < targets[i].size(); ++j) {
+            double diff = targets[i][j] - output[j];
+            total_error += diff * diff;
+        }
+    }
+    return total_error / inputs.size();
 }
 
 std::vector<double> network::predict(const std::vector<double>& input) {
@@ -255,6 +282,9 @@ void network::load_model(const std::string& filename) {
     for (size_t i = 0; i < m_layers - 1; ++i) {
         int act;
         in >> act;
+        if (act < 0 || act > static_cast<int>(ActivationType::Tanh)) {
+            throw std::runtime_error("Invalid activation type in model file");
+        }
         m_activations[i] = static_cast<ActivationType>(act);
     }
     m_network.clear();
