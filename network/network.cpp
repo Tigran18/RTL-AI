@@ -9,7 +9,8 @@ network::neuron::neuron(size_t number_of_weights, std::mt19937& gen)
 }
 
 double network::neuron::generate_random_value(std::mt19937& gen) {
-    std::uniform_real_distribution<double> dis(-0.5, 0.5);
+    double range = (m_number_of_weights > 0) ? 1.0 / m_number_of_weights : 1.0;
+    std::uniform_real_distribution<double> dis(-range, range);
     return dis(gen);
 }
 

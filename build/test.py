@@ -1,4 +1,4 @@
-from ai_module import Network, JSON  # type: ignore
+from ai_module import Network, ActivationType, JSON  # type: ignore
 import os
 
 MODEL_FILE = "network_weights.txt"
@@ -14,7 +14,8 @@ def main():
     INPUT_SIZE = 40
     OUTPUT_SIZE = 300
 
-    net = Network([INPUT_SIZE, 64, 64, OUTPUT_SIZE], 0.1, 10000)
+    activations = [ActivationType.ReLU] * 4  # same length as layer sizes
+    net = Network([INPUT_SIZE, 64, 64, OUTPUT_SIZE], activations, 0.1, 10000, 32, 0.0)
 
     if os.path.exists(MODEL_FILE):
         print(f"Loading model from {MODEL_FILE}...")

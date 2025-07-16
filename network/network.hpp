@@ -6,6 +6,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <algorithm>
+#include <string>
 
 class network {
 public:

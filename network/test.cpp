@@ -65,8 +65,10 @@ void train_xor_example() {
     std::vector<std::vector<double>> val_inputs, val_targets;
     std::vector<std::vector<double>> test_inputs, test_targets;
     split_data(inputs, targets, train_inputs, train_targets, val_inputs, val_targets, test_inputs, test_targets);
-    std::vector<size_t> layers = {2, 3, 1};
+    std::vector<size_t> layers = {2, 3, 5, 2, 1};
     std::vector<network::ActivationType> activations = {
+        network::ActivationType::ReLU,
+        network::ActivationType::Sigmoid,
         network::ActivationType::ReLU,
         network::ActivationType::Sigmoid
     };
@@ -83,8 +85,10 @@ void train_xor_example() {
 }
 
 void test_load_and_predict() {
-    std::vector<size_t> layers = {2, 3, 1};
+    std::vector<size_t> layers = {2, 3, 5, 2, 1};
     std::vector<network::ActivationType> activations = {
+        network::ActivationType::ReLU,
+        network::ActivationType::Sigmoid,
         network::ActivationType::ReLU,
         network::ActivationType::Sigmoid
     };
