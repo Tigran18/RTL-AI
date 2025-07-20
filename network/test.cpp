@@ -58,7 +58,7 @@ void split_data(const std::vector<std::vector<double>>& inputs,
     }
 }
 
-void train_xor_example() {
+void train_xor_example(bool use_batch_norm, const std::string& model_name) {
     std::vector<std::vector<double>> inputs, targets;
     generate_xor_data(inputs, targets, 1000, 0.1);
     std::vector<std::vector<double>> train_inputs, train_targets;
@@ -67,13 +67,13 @@ void train_xor_example() {
     split_data(inputs, targets, train_inputs, train_targets, val_inputs, val_targets, test_inputs, test_targets);
     std::vector<size_t> layers = {2, 3, 5, 2, 1};
     std::vector<network::ActivationType> activations = {
-        network::ActivationType::ReLU,
+        network::ActivationType::Tanh,
         network::ActivationType::Sigmoid,
-        network::ActivationType::ReLU,
+        network::ActivationType::Tanh,
         network::ActivationType::Sigmoid
     };
-    network net(layers, activations, 0.1, 10000, 32, 0.9);
-    std::cout << "Training XOR network...\n";
+    network net(layers, activations, 0.1, 5000, 32, 0.9, use_batch_norm);
+    std::cout << "Training XOR network " << (use_batch_norm ? "with" : "without") << " batch normalization...\n";
     net.train(train_inputs, train_targets, val_inputs, val_targets);
     std::cout << "\nTest MSE: " << net.evaluate(test_inputs, test_targets) << "\nPredictions on test set:\n";
     for (size_t i = 0; i < test_inputs.size(); ++i) {
@@ -81,19 +81,19 @@ void train_xor_example() {
         std::cout << "Input: [" << test_inputs[i][0] << ", " << test_inputs[i][1]
                   << "] -> Output: " << output[0] << ", Target: " << test_targets[i][0] << "\n";
     }
-    net.save_model("xor_model.txt");
+    net.save_model(model_name);
 }
 
-void test_load_and_predict() {
+void test_load_and_predict(const std::string& model_name) {
     std::vector<size_t> layers = {2, 3, 5, 2, 1};
     std::vector<network::ActivationType> activations = {
-        network::ActivationType::ReLU,
+        network::ActivationType::Tanh,
         network::ActivationType::Sigmoid,
-        network::ActivationType::ReLU,
+        network::ActivationType::Tanh,
         network::ActivationType::Sigmoid
     };
-    network net(layers, activations, 0.1, 10000, 32, 0.9);
-    net.load_model("xor_model.txt");
+    network net(layers, activations, 0.1, 5000, 32, 0.9);
+    net.load_model(model_name);
     std::vector<std::vector<double>> inputs = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
     std::vector<std::vector<double>> targets = {{0}, {1}, {1}, {0}};
     std::cout << "\nPredictions from loaded model on original XOR inputs:\n";
@@ -106,8 +106,12 @@ void test_load_and_predict() {
 
 int main() {
     try {
-        train_xor_example();
-        test_load_and_predict();
+        std::cout << "=== Testing without Batch Normalization ===\n";
+        train_xor_example(false, "xor_model_no_bn.txt");
+        test_load_and_predict("xor_model_no_bn.txt");
+        std::cout << "\n=== Testing with Batch Normalization ===\n";
+        train_xor_example(true, "xor_model_bn.txt");
+        test_load_and_predict("xor_model_bn.txt");
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
