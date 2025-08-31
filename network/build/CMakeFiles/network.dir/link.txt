@@ -1,0 +1,2 @@
+/usr/bin/ar qc libnetwork.a CMakeFiles/network.dir/network.cpp.o CMakeFiles/network.dir/cuda_kernels.cu.o
+/usr/bin/ranlib libnetwork.a

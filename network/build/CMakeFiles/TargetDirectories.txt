@@ -1,0 +1,4 @@
+/home/tigranda1809/RTL AI/network/build/CMakeFiles/network.dir
+/home/tigranda1809/RTL AI/network/build/CMakeFiles/neural_network.dir
+/home/tigranda1809/RTL AI/network/build/CMakeFiles/edit_cache.dir
+/home/tigranda1809/RTL AI/network/build/CMakeFiles/rebuild_cache.dir
