@@ -1,40 +1,48 @@
 #include <cuda_runtime.h>
+#include <device_launch_parameters.h>
 #include <stdio.h>
-#include <math.h>
 
-extern "C" __global__ void compute_activation_on_gpu(double* input, double* output, int size, int act_type) {
+__global__ void apply_activation(double* input, double* output, int size, int act_type) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx == 0) { // Print from one thread to avoid clutter
-        printf("compute_activation_on_gpu: size=%d, act_type=%d\n", size, act_type);
-    }
     if (idx < size) {
-        double x = input[idx];
         switch (act_type) {
             case 0: // Sigmoid
-                output[idx] = 1.0 / (1.0 + exp(-x));
+                output[idx] = 1.0 / (1.0 + exp(-input[idx]));
                 break;
             case 1: // ReLU
-                output[idx] = x > 0.0 ? x : 0.0;
+                output[idx] = max(0.0, input[idx]);
                 break;
             case 2: // Tanh
-                output[idx] = tanh(x);
-                break;
-            default:
-                printf("Invalid act_type %d at idx %d\n", act_type, idx);
-                output[idx] = x; // Fallback
+                output[idx] = tanh(input[idx]);
                 break;
         }
     }
 }
 
-extern "C" __global__ void compute_batch_norm_on_gpu(double* input, double* output, double mean, 
-                                                    double variance, double gamma, double beta, 
-                                                    double epsilon, int size) {
+__global__ void batch_norm(double* input, double* output, double mean, double variance,
+                           double gamma, double beta, double epsilon, int size) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx == 0) {
-        printf("compute_batch_norm_on_gpu: size=%d, mean=%f, variance=%f\n", size, mean, variance);
-    }
     if (idx < size) {
         output[idx] = gamma * (input[idx] - mean) / sqrt(variance + epsilon) + beta;
+    }
+}
+
+extern "C" void compute_activation_on_gpu(double* input, double* output, int size, int act_type) {
+    int blockSize = 256;
+    int gridSize = (size + blockSize - 1) / blockSize;
+    apply_activation<<<gridSize, blockSize>>>(input, output, size, act_type);
+    cudaError_t err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA error in compute_activation_on_gpu at %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(err));
+    }
+}
+
+extern "C" void compute_batch_norm_on_gpu(double* input, double* output, double mean, double variance, double gamma, double beta, double epsilon, int size) {
+    int blockSize = 256;
+    int gridSize = (size + blockSize - 1) / blockSize;
+    batch_norm<<<gridSize, blockSize>>>(input, output, mean, variance, gamma, beta, epsilon, size);
+    cudaError_t err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA error in compute_batch_norm_on_gpu at %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(err));
     }
 }

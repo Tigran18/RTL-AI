@@ -1,6 +1,0 @@
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/CMakeFiles/ZERO_CHECK.dir
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/network/CMakeFiles/neural_network.dir
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/network/CMakeFiles/ALL_BUILD.dir
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/json_parser/CMakeFiles/json_parser.dir
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/json_parser/CMakeFiles/ALL_BUILD.dir

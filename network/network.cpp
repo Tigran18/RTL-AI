@@ -6,12 +6,15 @@
 
 #define CUDA_CHECK(err) do { \
     if (err != cudaSuccess) { \
+        std::cerr << "CUDA error at " << __FILE__ << ":" << __LINE__ << ": " \
+                  << cudaGetErrorString(err) << std::endl << std::flush; \
         throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(err)); \
     } \
 } while(0)
 
 #define CUBLAS_CHECK(err) do { \
     if (err != CUBLAS_STATUS_SUCCESS) { \
+        std::cerr << "cuBLAS error at " << __FILE__ << ":" << __LINE__ << std::endl << std::flush; \
         throw std::runtime_error("cuBLAS error"); \
     } \
 } while(0)
@@ -21,11 +24,11 @@ extern "C" void compute_batch_norm_on_gpu(double* input, double* output, double 
 
 network::neuron::neuron(size_t number_of_weights, std::mt19937& gen)
     : m_number_of_weights(number_of_weights), m_bias(generate_random_value(gen)) {
+    std::cout << "Creating neuron with " << number_of_weights << " weights" << std::endl << std::flush;
     for (size_t i = 0; i < number_of_weights; ++i) {
         m_weights.push_back(generate_random_value(gen));
         m_weight_updates.push_back(0.0);
     }
-    allocate_gpu_memory();
 }
 
 network::neuron::~neuron() {
@@ -33,7 +36,12 @@ network::neuron::~neuron() {
 }
 
 void network::neuron::allocate_gpu_memory() {
+    std::cout << "Allocating GPU memory for neuron with " << m_number_of_weights << " weights" << std::endl << std::flush;
     if (m_number_of_weights > 0) {
+        if (d_weights || d_inputs || d_weight_updates || d_output) {
+            std::cerr << "Warning: GPU memory already allocated for neuron" << std::endl << std::flush;
+            free_gpu_memory();
+        }
         CUDA_CHECK(cudaMalloc(&d_weights, m_number_of_weights * sizeof(double)));
         CUDA_CHECK(cudaMalloc(&d_inputs, m_number_of_weights * sizeof(double)));
         CUDA_CHECK(cudaMalloc(&d_weight_updates, m_number_of_weights * sizeof(double)));
@@ -44,10 +52,11 @@ void network::neuron::allocate_gpu_memory() {
 }
 
 void network::neuron::free_gpu_memory() {
-    if (d_weights) CUDA_CHECK(cudaFree(d_weights));
-    if (d_inputs) CUDA_CHECK(cudaFree(d_inputs));
-    if (d_weight_updates) CUDA_CHECK(cudaFree(d_weight_updates));
-    if (d_output) CUDA_CHECK(cudaFree(d_output));
+    std::cout << "Freeing GPU memory for neuron" << std::endl << std::flush;
+    if (d_weights) { CUDA_CHECK(cudaFree(d_weights)); d_weights = nullptr; }
+    if (d_inputs) { CUDA_CHECK(cudaFree(d_inputs)); d_inputs = nullptr; }
+    if (d_weight_updates) { CUDA_CHECK(cudaFree(d_weight_updates)); d_weight_updates = nullptr; }
+    if (d_output) { CUDA_CHECK(cudaFree(d_output)); d_output = nullptr; }
 }
 
 void network::neuron::sync_weights_to_device() {
@@ -98,9 +107,10 @@ double network::neuron::compute_output(ActivationType type, bool use_bn, double 
                                       bool training, double epsilon, cublasHandle_t cublas_handle) {
     double h_output = 0.0;
     if (m_number_of_weights > 0) {
-        double one = 1.0;
         CUBLAS_CHECK(cublasDdot(cublas_handle, m_number_of_weights, d_weights, 1, d_inputs, 1, &h_output));
         h_output += m_bias;
+    } else {
+        h_output = m_bias; // For input layer neurons
     }
     m_z = h_output;
 
@@ -130,11 +140,14 @@ network::network(std::vector<size_t> number_of_neurons_per_layer,
     : m_number_of_neurons_per_layer(number_of_neurons_per_layer),
       m_learning_rate(learning_rate), m_epochs(epochs), m_batch_size(batch_size),
       m_momentum(momentum), m_activations(activations), m_use_batch_norm(use_batch_norm) {
+    std::cout << "Initializing network with " << number_of_neurons_per_layer.size() << " layers..." << std::endl << std::flush;
     m_layers = number_of_neurons_per_layer.size();
     if (m_batch_size == 0) throw std::invalid_argument("Batch size must be greater than 0");
     if (m_momentum < 0.0 || m_momentum > 1.0) throw std::invalid_argument("Momentum must be between 0 and 1");
     if (activations.size() != m_layers - 1) throw std::invalid_argument("Number of activations must match number of non-input layers");
     std::mt19937 gen(std::random_device{}());
+    
+    // Create neurons without GPU allocation
     for (size_t layer = 0; layer < m_layers; ++layer) {
         m_network.push_back(std::vector<neuron>());
         size_t prev_layer_size = (layer == 0) ? 0 : m_number_of_neurons_per_layer[layer - 1];
@@ -142,6 +155,17 @@ network::network(std::vector<size_t> number_of_neurons_per_layer,
             m_network[layer].emplace_back(prev_layer_size, gen);
         }
     }
+    
+    // Allocate GPU memory for neurons after creation
+    for (size_t layer = 0; layer < m_layers; ++layer) {
+        for (size_t neuron_idx = 0; neuron_idx < m_network[layer].size(); ++neuron_idx) {
+            if (m_network[layer][neuron_idx].m_number_of_weights > 0) {
+                std::cout << "Allocating GPU memory for neuron " << neuron_idx << " in layer " << layer << std::endl << std::flush;
+                m_network[layer][neuron_idx].allocate_gpu_memory();
+            }
+        }
+    }
+    
     initialize_gpu();
 }
 
@@ -150,16 +174,24 @@ network::~network() {
 }
 
 void network::initialize_gpu() {
+    std::cout << "Initializing GPU resources..." << std::endl << std::flush;
+    size_t free_mem, total_mem;
+    CUDA_CHECK(cudaMemGetInfo(&free_mem, &total_mem));
+    std::cout << "GPU memory: " << free_mem / (1024.0 * 1024.0) << " MB free of " 
+              << total_mem / (1024.0 * 1024.0) << " MB total" << std::endl << std::flush;
     CUBLAS_CHECK(cublasCreate(&m_cublas_handle));
     d_layer_outputs.resize(m_layers);
     d_layer_deltas.resize(m_layers);
     for (size_t layer = 0; layer < m_layers; ++layer) {
+        std::cout << "Allocating GPU memory for layer " << layer << " with " 
+                  << m_number_of_neurons_per_layer[layer] << " neurons" << std::endl << std::flush;
         CUDA_CHECK(cudaMalloc(&d_layer_outputs[layer], m_number_of_neurons_per_layer[layer] * sizeof(double)));
         CUDA_CHECK(cudaMalloc(&d_layer_deltas[layer], m_number_of_neurons_per_layer[layer] * sizeof(double)));
     }
 }
 
 void network::cleanup_gpu() {
+    std::cout << "Cleaning up GPU resources..." << std::endl << std::flush;
     CUBLAS_CHECK(cublasDestroy(m_cublas_handle));
     for (auto ptr : d_layer_outputs) CUDA_CHECK(cudaFree(ptr));
     for (auto ptr : d_layer_deltas) CUDA_CHECK(cudaFree(ptr));
@@ -272,6 +304,7 @@ void network::train(const std::vector<std::vector<double>>& inputs,
                     const std::vector<std::vector<double>>& targets,
                     const std::vector<std::vector<double>>& val_inputs,
                     const std::vector<std::vector<double>>& val_targets) {
+    std::cout << "Starting training with " << inputs.size() << " samples..." << std::endl << std::flush;
     if (inputs.size() != targets.size()) {
         throw std::invalid_argument("Number of inputs must match number of targets");
     }
@@ -279,6 +312,7 @@ void network::train(const std::vector<std::vector<double>>& inputs,
         throw std::invalid_argument("Number of validation inputs must match number of validation targets");
     }
     if (inputs.empty()) {
+        std::cout << "No training data provided." << std::endl << std::flush;
         return;
     }
     std::mt19937 gen(std::random_device{}());
@@ -335,8 +369,10 @@ void network::train(const std::vector<std::vector<double>>& inputs,
                         neuron.m_weight_updates[k] = m_momentum * neuron.m_weight_updates[k] +
                                                     m_learning_rate * gradient;
                         neuron.m_weights[k] += neuron.m_weight_updates[k];
-                        CUDA_CHECK(cudaMemcpy(neuron.d_weights, neuron.m_weights.data(),
-                                             neuron.m_number_of_weights * sizeof(double), cudaMemcpyHostToDevice));
+                        if (m_number_of_neurons_per_layer[layer] > 0) {
+                            CUDA_CHECK(cudaMemcpy(neuron.d_weights, neuron.m_weights.data(),
+                                                neuron.m_number_of_weights * sizeof(double), cudaMemcpyHostToDevice));
+                        }
                     }
                     double bias_gradient = bias_gradients[layer][j] / current_batch_size;
                     neuron.m_bias_update = m_momentum * neuron.m_bias_update +
@@ -358,9 +394,10 @@ void network::train(const std::vector<std::vector<double>>& inputs,
             if (!val_inputs.empty()) {
                 std::cout << ", Validation MSE: " << val_error;
             }
-            std::cout << std::endl;
+            std::cout << std::endl << std::flush;
         }
     }
+    std::cout << "Training completed." << std::endl << std::flush;
 }
 
 double network::evaluate(const std::vector<std::vector<double>>& inputs,
@@ -369,6 +406,7 @@ double network::evaluate(const std::vector<std::vector<double>>& inputs,
         throw std::invalid_argument("Number of inputs must match number of targets");
     }
     if (inputs.empty()) {
+        std::cout << "No evaluation data provided." << std::endl << std::flush;
         return 0.0;
     }
     double total_error = 0.0;
@@ -379,7 +417,9 @@ double network::evaluate(const std::vector<std::vector<double>>& inputs,
             total_error += diff * diff;
         }
     }
-    return total_error / inputs.size();
+    double mse = total_error / inputs.size();
+    std::cout << "Evaluation MSE: " << mse << std::endl << std::flush;
+    return mse;
 }
 
 std::vector<double> network::predict(const std::vector<double>& input) {
@@ -397,13 +437,15 @@ void network::display_outputs() const {
         for (const auto& neuron : m_network[layer]) {
             std::cout << neuron.m_output << " ";
         }
-        std::cout << std::endl;
+        std::cout << std::endl << std::flush;
     }
 }
 
 void network::save_model(const std::string& filename) const {
+    std::cout << "Saving model to " << filename << "..." << std::endl << std::flush;
     std::ofstream out(filename);
     if (!out) {
+        std::cerr << "Failed to open file for saving model: " << filename << std::endl << std::flush;
         throw std::runtime_error("Failed to open file for saving model.");
     }
     out << m_layers << "\n";
@@ -428,11 +470,14 @@ void network::save_model(const std::string& filename) const {
         }
     }
     out.close();
+    std::cout << "Model saved successfully." << std::endl << std::flush;
 }
 
 void network::load_model(const std::string& filename) {
+    std::cout << "Loading model from " << filename << "..." << std::endl << std::flush;
     std::ifstream in(filename);
     if (!in) {
+        std::cerr << "Failed to open file for loading model: " << filename << std::endl << std::flush;
         throw std::runtime_error("Failed to open file for loading model.");
     }
     in >> m_layers;
@@ -464,11 +509,14 @@ void network::load_model(const std::string& filename) {
                 in >> n.m_weights[k];
             }
             in >> n.m_bn_gamma >> n.m_bn_beta >> n.m_bn_mean >> n.m_bn_variance;
-            n.sync_weights_to_device();
+            if (prev_layer_size > 0) {
+                n.allocate_gpu_memory();
+            }
             layer_neurons.push_back(n);
         }
         m_network.push_back(layer_neurons);
     }
     in.close();
+    std::cout << "Model loaded successfully." << std::endl << std::flush;
     initialize_gpu();
 }
