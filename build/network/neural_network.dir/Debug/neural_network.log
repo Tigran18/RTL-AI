@@ -1,0 +1,28 @@
+﻿  Building Custom Rule C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/CMakeLists.txt
+  Compiling CUDA source file ..\..\network\cuda_kernels.cu...
+  
+  C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\build\network>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\nvcc.exe"  --use-local-env -ccbin "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64" -x cu -rdc=true  -I"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include" -I"C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\network" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\include"     --keep-dir neural_network\x64\Debug  -maxrregcount=0   --machine 64 --compile -cudart static --generate-code=arch=compute_60,code=[compute_60,sm_60] --generate-code=arch=compute_61,code=[compute_61,sm_61] --generate-code=arch=compute_70,code=[compute_70,sm_70] --generate-code=arch=compute_75,code=[compute_75,sm_75] --generate-code=arch=compute_80,code=[compute_80,sm_80] --generate-code=arch=compute_86,code=[compute_86,sm_86] -Xcompiler="/EHsc -Ob0 -Zi" -g  -D_WINDOWS -D"CMAKE_INTDIR=\"Debug\"" -D_MBCS -DWIN32 -D_WINDOWS -D"CMAKE_INTDIR=\"Debug\"" -Xcompiler "/EHsc /W1 /nologo /Od /FS /Zi /RTC1 /MDd " -Xcompiler "/Fdneural_network.dir\Debug\vc143.pdb" -o neural_network.dir\Debug\cuda_kernels.obj "C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\network\cuda_kernels.cu" 
+  cuda_kernels.cu
+  tmpxft_00005384_00000000-7_cuda_kernels.compute_86.cudafe1.cpp
+  test.cpp
+  network.cpp
+  Generating Code...
+  
+  C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\build\network>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\nvcc.exe" -dlink  -o neural_network.dir\Debug\neural_network.device-link.obj -Xcompiler "/EHsc /W1 /nologo /Od /Zi /RTC1 /MDd " -Xcompiler "/Fdneural_network.dir\Debug\vc143.pdb" -L"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin/crt" -L"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64" -L"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/lib/x64/Debug" -L"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\lib\x64" "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\lib\x64\cudart.lib" "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\lib\x64\cublas.lib" "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\lib\x64\cublasLt.lib" cudadevrt.lib cudart_static.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib -forward-unknown-to-host-compiler -Wno-deprecated-gpu-targets -D_WINDOWS -Xcompiler=" /EHsc" -Xcompiler=" -Ob0 -Od /RTC1" "--generate-code=arch=compute_60,code=[compute_60,sm_60]" "--generate-code=arch=compute_61,code=[compute_61,sm_61]" "--generate-code=arch=compute_70,code=[compute_70,sm_70]" "--generate-code=arch=compute_75,code=[compute_75,sm_75]" "--generate-code=arch=compute_80,code=[compute_80,sm_80]" "--generate-code=arch=compute_86,code=[compute_86,sm_86]" -Xcompiler=-MDd -Xcompiler=-Zi    neural_network.dir\Debug\cuda_kernels.obj 
+  cudart.lib
+  cublas.lib
+  cublasLt.lib
+  cudadevrt.lib
+  cudart_static.lib
+  kernel32.lib
+  user32.lib
+  gdi32.lib
+  winspool.lib
+  shell32.lib
+  ole32.lib
+  oleaut32.lib
+  uuid.lib
+  comdlg32.lib
+  advapi32.lib
+  cuda_kernels.obj
+  neural_network.vcxproj -> C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\build\network\Debug\neural_network.exe

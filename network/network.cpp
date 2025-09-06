@@ -2,6 +2,7 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <stdexcept>
+#include <numeric>
 
 #define CUDA_CHECK(err) do { \
     if (err != cudaSuccess) { \
@@ -76,31 +77,19 @@ void network::neuron::set_inputs(const std::vector<double>& inputs) {
 
 double network::neuron::activate(double x, ActivationType type) const {
     switch (type) {
-        case ActivationType::Sigmoid:
-            return 1.0 / (1.0 + std::exp(-x));
-        case ActivationType::ReLU:
-            return std::max(0.0, x);
-        case ActivationType::Tanh:
-            return std::tanh(x);
-        default:
-            throw std::invalid_argument("Unknown activation type");
+        case ActivationType::Sigmoid: return 1.0 / (1.0 + std::exp(-x));
+        case ActivationType::ReLU: return std::max(0.0, x);
+        case ActivationType::Tanh: return std::tanh(x);
+        default: throw std::invalid_argument("Unknown activation type");
     }
 }
 
 double network::neuron::activate_derivative(double x, ActivationType type) const {
     switch (type) {
-        case ActivationType::Sigmoid: {
-            double sig = activate(x, ActivationType::Sigmoid);
-            return sig * (1.0 - sig);
-        }
-        case ActivationType::ReLU:
-            return x > 0 ? 1.0 : 0.0;
-        case ActivationType::Tanh: {
-            double tanh_x = std::tanh(x);
-            return 1.0 - tanh_x * tanh_x;
-        }
-        default:
-            throw std::invalid_argument("Unknown activation type");
+        case ActivationType::Sigmoid: { double sig = activate(x, ActivationType::Sigmoid); return sig * (1.0 - sig); }
+        case ActivationType::ReLU: return x > 0 ? 1.0 : 0.0;
+        case ActivationType::Tanh: { double t = std::tanh(x); return 1.0 - t * t; }
+        default: throw std::invalid_argument("Unknown activation type");
     }
 }
 
@@ -109,30 +98,29 @@ double network::neuron::compute_output(ActivationType type, bool use_bn, double 
                                       bool training, double epsilon, cublasHandle_t cublas_handle) {
     double h_output = 0.0;
     if (m_number_of_weights > 0) {
-        double one = 1.0, zero = 0.0;
+        double one = 1.0;
         CUBLAS_CHECK(cublasDdot(cublas_handle, m_number_of_weights, d_weights, 1, d_inputs, 1, &h_output));
         h_output += m_bias;
     }
     m_z = h_output;
 
-    // Apply activation on GPU
     CUDA_CHECK(cudaMemcpy(d_output, &h_output, sizeof(double), cudaMemcpyHostToDevice));
     compute_activation_on_gpu(d_output, d_output, 1, static_cast<int>(type));
     CUDA_CHECK(cudaMemcpy(&m_output, d_output, sizeof(double), cudaMemcpyDeviceToHost));
 
-    // Apply batch normalization on GPU
     if (use_bn && training) {
         CUDA_CHECK(cudaMemcpy(d_output, &m_output, sizeof(double), cudaMemcpyHostToDevice));
         compute_batch_norm_on_gpu(d_output, d_output, bn_mean, bn_variance, bn_gamma, bn_beta, epsilon, 1);
         CUDA_CHECK(cudaDeviceSynchronize());
         CUDA_CHECK(cudaMemcpy(&m_output, d_output, sizeof(double), cudaMemcpyDeviceToHost));
-        m_bn_normalized = m_output; // Store normalized output for backpropagation
+        m_bn_normalized = m_output;
     } else if (use_bn) {
         CUDA_CHECK(cudaMemcpy(d_output, &m_output, sizeof(double), cudaMemcpyHostToDevice));
         compute_batch_norm_on_gpu(d_output, d_output, m_bn_mean, m_bn_variance, bn_gamma, bn_beta, epsilon, 1);
         CUDA_CHECK(cudaDeviceSynchronize());
         CUDA_CHECK(cudaMemcpy(&m_output, d_output, sizeof(double), cudaMemcpyDeviceToHost));
     }
+
     return m_output;
 }
 

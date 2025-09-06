@@ -39,6 +39,9 @@ private:
         double m_bn_normalized = 0.0;
         double m_bn_gamma_gradient = 0.0;
         double m_bn_beta_gradient = 0.0;
+
+        double* d_weights = nullptr;
+        double* d_inputs = nullptr;
         double* d_weight_updates = nullptr;
         double* d_output = nullptr;
 
@@ -93,5 +96,3 @@ public:
     void initialize_gpu();
     void cleanup_gpu();
 };
-
-

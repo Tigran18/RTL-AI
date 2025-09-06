@@ -1,0 +1,9 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/cmake_install.cmake",
+		"C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/network/cmake_install.cmake",
+		"C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/build/json_parser/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
