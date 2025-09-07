@@ -37,6 +37,11 @@ private:
     float m_bn_epsilon = 1e-5f;
     size_t m_layers;
 
+    // Adam optimizer parameters
+    float m_beta1 = 0.9f;
+    float m_beta2 = 0.999f;
+    float m_epsilon = 1e-8f;
+
     // GPU-related members
     cublasHandle_t m_cublas_handle;
     std::vector<float*> d_weights;
@@ -54,8 +59,14 @@ private:
     std::vector<float*> d_error;
     std::vector<float*> d_weight_gradients;
     std::vector<float*> d_bias_gradients;
-    std::vector<float*> d_weight_velocity;
-    std::vector<float*> d_bias_velocity;
+    std::vector<float*> d_weight_m; // First moment (Adam)
+    std::vector<float*> d_weight_v; // Second moment (Adam)
+    std::vector<float*> d_bias_m;
+    std::vector<float*> d_bias_v;
+    std::vector<float*> d_gamma_m;
+    std::vector<float*> d_gamma_v;
+    std::vector<float*> d_beta_m;
+    std::vector<float*> d_beta_v;
     float* d_ones = nullptr;
     int m_block_size;
 
@@ -87,7 +98,7 @@ public:
 };
 
 // CUDA kernel declarations
-extern "C" void fused_bias_activation_on_gpu(float* input, float* biases, float* output, int batch_size, int num, int act_type);
+extern "C" void fused_bias_activation_on_gpu(float* input, float* biases, float* output, int batch_size, int num, int act_type, float* pre_act);
 extern "C" void compute_batch_norm_stats_batched_on_gpu(float* input, float* mean, float* variance, int batch_size, int num_features, int block_size);
 extern "C" void compute_batch_norm_batched_on_gpu(float* input, float* output, float* mean,
                                                  float* variance, float* gamma, float* beta,
@@ -110,3 +121,10 @@ extern "C" void update_parameters_on_gpu(float* weights, float* weight_gradients
                                          float* betas, float* beta_gradients,
                                          float learning_rate, float momentum,
                                          int num_weights, int num, bool use_bn);
+extern "C" void apply_bn_backprop_correction_on_gpu(float* deltas, float* hats, float* gammas, float* gamma_grads, float* beta_grads, float* variances, float epsilon, int batch_size, int num);
+extern "C" void adam_update_on_gpu(float* weights, float* weight_gradients, float* m_weights, float* v_weights,
+                                   float* biases, float* bias_gradients, float* m_biases, float* v_biases,
+                                   float* gammas, float* gamma_gradients, float* m_gammas, float* v_gammas,
+                                   float* betas, float* beta_gradients, float* m_betas, float* v_betas,
+                                   float learning_rate, float beta1, float beta2, float epsilon,
+                                   int num_weights, int num, int t, bool use_bn);

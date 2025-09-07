@@ -66,7 +66,7 @@ network::network(std::vector<size_t> number_of_neurons_per_layer,
         }
     }
 
-    // Initialize GPU memory for weights and biases
+    // Initialize GPU memory for weights, biases, and Adam moments
     d_weights.resize(m_layers, nullptr);
     d_biases.resize(m_layers, nullptr);
     d_gammas.resize(m_layers, nullptr);
@@ -79,8 +79,14 @@ network::network(std::vector<size_t> number_of_neurons_per_layer,
     d_error.resize(m_layers, nullptr);
     d_weight_gradients.resize(m_layers, nullptr);
     d_bias_gradients.resize(m_layers, nullptr);
-    d_weight_velocity.resize(m_layers, nullptr);
-    d_bias_velocity.resize(m_layers, nullptr);
+    d_weight_m.resize(m_layers, nullptr);
+    d_weight_v.resize(m_layers, nullptr);
+    d_bias_m.resize(m_layers, nullptr);
+    d_bias_v.resize(m_layers, nullptr);
+    d_gamma_m.resize(m_layers, nullptr);
+    d_gamma_v.resize(m_layers, nullptr);
+    d_beta_m.resize(m_layers, nullptr);
+    d_beta_v.resize(m_layers, nullptr);
 
     for (size_t layer = 1; layer < m_layers; ++layer) {
         size_t num = m_number_of_neurons_per_layer[layer];
@@ -121,10 +127,22 @@ network::network(std::vector<size_t> number_of_neurons_per_layer,
         CUDA_CHECK(cudaMalloc(&d_error[layer], m_batch_size * num * sizeof(float)));
         CUDA_CHECK(cudaMalloc(&d_weight_gradients[layer], prev * num * sizeof(float)));
         CUDA_CHECK(cudaMalloc(&d_bias_gradients[layer], num * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_weight_velocity[layer], prev * num * sizeof(float)));
-        CUDA_CHECK(cudaMalloc(&d_bias_velocity[layer], num * sizeof(float)));
-        CUDA_CHECK(cudaMemset(d_weight_velocity[layer], 0, prev * num * sizeof(float)));
-        CUDA_CHECK(cudaMemset(d_bias_velocity[layer], 0, num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_weight_m[layer], prev * num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_weight_v[layer], prev * num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_bias_m[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_bias_v[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_gamma_m[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_gamma_v[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_beta_m[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_beta_v[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_weight_m[layer], 0, prev * num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_weight_v[layer], 0, prev * num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_bias_m[layer], 0, num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_bias_v[layer], 0, num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_gamma_m[layer], 0, num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_gamma_v[layer], 0, num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_beta_m[layer], 0, num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_beta_v[layer], 0, num * sizeof(float)));
 
         delete[] h_weights;
         delete[] h_biases;
@@ -165,7 +183,12 @@ void network::initialize_gpu() {
 
     // Pre-allocate d_ones
     CUDA_CHECK(cudaMalloc(&d_ones, m_batch_size * sizeof(float)));
-    CUDA_CHECK(cudaMemset(d_ones, 1, m_batch_size * sizeof(float)));
+    float* h_ones = new float[m_batch_size];
+    for (size_t i = 0; i < m_batch_size; ++i) {
+        h_ones[i] = 1.0f;
+    }
+    CUDA_CHECK(cudaMemcpy(d_ones, h_ones, m_batch_size * sizeof(float), cudaMemcpyHostToDevice));
+    delete[] h_ones;
 
     // Get optimal block size
     cudaDeviceProp prop;
@@ -192,8 +215,14 @@ void network::cleanup_gpu() {
         if (d_error[layer]) CUDA_CHECK(cudaFree(d_error[layer]));
         if (d_weight_gradients[layer]) CUDA_CHECK(cudaFree(d_weight_gradients[layer]));
         if (d_bias_gradients[layer]) CUDA_CHECK(cudaFree(d_bias_gradients[layer]));
-        if (d_weight_velocity[layer]) CUDA_CHECK(cudaFree(d_weight_velocity[layer]));
-        if (d_bias_velocity[layer]) CUDA_CHECK(cudaFree(d_bias_velocity[layer]));
+        if (d_weight_m[layer]) CUDA_CHECK(cudaFree(d_weight_m[layer]));
+        if (d_weight_v[layer]) CUDA_CHECK(cudaFree(d_weight_v[layer]));
+        if (d_bias_m[layer]) CUDA_CHECK(cudaFree(d_bias_m[layer]));
+        if (d_bias_v[layer]) CUDA_CHECK(cudaFree(d_bias_v[layer]));
+        if (d_gamma_m[layer]) CUDA_CHECK(cudaFree(d_gamma_m[layer]));
+        if (d_gamma_v[layer]) CUDA_CHECK(cudaFree(d_gamma_v[layer]));
+        if (d_beta_m[layer]) CUDA_CHECK(cudaFree(d_beta_m[layer]));
+        if (d_beta_v[layer]) CUDA_CHECK(cudaFree(d_beta_v[layer]));
     }
     if (d_ones) CUDA_CHECK(cudaFree(d_ones));
 }
@@ -212,6 +241,7 @@ void network::forward_propagate(const std::vector<std::vector<float>>& batch_inp
     }
     CUDA_CHECK(cudaMemcpy(d_layer_outputs[0], h_batch.data(), B * input_dim * sizeof(float), 
                          cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     // Forward pass through layers
     for (size_t layer = 1; layer < m_layers; ++layer) {
@@ -224,14 +254,16 @@ void network::forward_propagate(const std::vector<std::vector<float>>& batch_inp
         CUBLAS_CHECK(cublasSgemm(m_cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, num, B, prev, 
                                  &alpha, d_weights[layer], num, d_layer_outputs[layer - 1], prev, 
                                  &beta, d_pre_acts[layer], num));
+        CUDA_CHECK(cudaDeviceSynchronize());
 
         if (m_use_batch_norm && layer < m_layers - 1) {
             // Compute batch statistics
             compute_batch_norm_stats_batched_on_gpu(d_pre_acts[layer], d_mean[layer], 
                                                    d_variance[layer], B, num, m_block_size);
+            CUDA_CHECK(cudaDeviceSynchronize());
 
             if (training) {
-                // Update running statistics (still on CPU for simplicity, but low overhead)
+                // Update running statistics (on CPU for simplicity, low overhead)
                 std::vector<float> h_mean(num), h_variance(num);
                 CUDA_CHECK(cudaMemcpy(h_mean.data(), d_mean[layer], num * sizeof(float), 
                                      cudaMemcpyDeviceToHost));
@@ -244,11 +276,6 @@ void network::forward_propagate(const std::vector<std::vector<float>>& batch_inp
                     m_network[layer][j].m_bn_variance = (1 - m_bn_momentum) * h_variance[j] + 
                                                        m_bn_momentum * m_network[layer][j].m_bn_variance;
                 }
-
-                // Apply batch normalization
-                compute_batch_norm_batched_on_gpu(d_pre_acts[layer], d_layer_outputs[layer], 
-                                                 d_mean[layer], d_variance[layer], d_gammas[layer], 
-                                                 d_betas[layer], m_bn_epsilon, B, num, d_hats[layer]);
             } else {
                 // Use running statistics for inference
                 std::vector<float> h_mean(num), h_variance(num);
@@ -260,19 +287,20 @@ void network::forward_propagate(const std::vector<std::vector<float>>& batch_inp
                                      cudaMemcpyHostToDevice));
                 CUDA_CHECK(cudaMemcpy(d_variance[layer], h_variance.data(), num * sizeof(float), 
                                      cudaMemcpyHostToDevice));
-
-                compute_batch_norm_batched_on_gpu(d_pre_acts[layer], d_layer_outputs[layer], 
-                                                 d_mean[layer], d_variance[layer], d_gammas[layer], 
-                                                 d_betas[layer], m_bn_epsilon, B, num, nullptr);
+                CUDA_CHECK(cudaDeviceSynchronize());
             }
 
-            // Apply fused activation on normalized outputs
-            fused_bias_activation_on_gpu(d_layer_outputs[layer], nullptr, d_layer_outputs[layer], B, num, act_type);
+            // Apply batch normalization
+            compute_batch_norm_batched_on_gpu(d_pre_acts[layer], d_layer_outputs[layer], 
+                                             d_mean[layer], d_variance[layer], 
+                                             d_gammas[layer], d_betas[layer], 
+                                             m_bn_epsilon, B, num, d_hats[layer]);
+            CUDA_CHECK(cudaDeviceSynchronize());
         } else {
-            // Fused bias and activation (bias added here since no BN)
-            fused_bias_activation_on_gpu(d_pre_acts[layer], d_biases[layer], d_layer_outputs[layer], B, num, act_type);
-            CUDA_CHECK(cudaMemcpy(d_pre_acts[layer], d_layer_outputs[layer], 
-                                 B * num * sizeof(float), cudaMemcpyDeviceToDevice));
+            // Apply bias and activation
+            fused_bias_activation_on_gpu(d_pre_acts[layer], d_biases[layer], 
+                                        d_layer_outputs[layer], B, num, act_type, nullptr);
+            CUDA_CHECK(cudaDeviceSynchronize());
         }
     }
 }
@@ -293,38 +321,58 @@ void network::backpropagate(const std::vector<std::vector<float>>& batch_targets
     CUDA_CHECK(cudaMalloc(&d_targets, B * output_dim * sizeof(float)));
     CUDA_CHECK(cudaMemcpy(d_targets, h_targets.data(), B * output_dim * sizeof(float), 
                          cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     // Compute output layer deltas
     int act_type = static_cast<int>(m_activations[m_layers - 2]);
     compute_output_delta_batched_on_gpu(d_layer_outputs[m_layers - 1], d_pre_acts[m_layers - 1], 
                                        d_targets, d_layer_deltas[m_layers - 1], B, output_dim, 
                                        act_type);
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     CUDA_CHECK(cudaFree(d_targets));
 
     // Backpropagate through hidden layers
     for (int layer = m_layers - 2; layer >= 1; --layer) {
         size_t num = m_number_of_neurons_per_layer[layer];
-        size_t next = m_number_of_neurons_per_layer[layer + 1];
+        size_t num_next = m_number_of_neurons_per_layer[layer + 1];
         act_type = static_cast<int>(m_activations[layer - 1]);
 
         // Compute errors for current layer
         compute_hidden_delta_batched_on_gpu(d_layer_deltas[layer + 1], d_weights[layer + 1], 
-                                           d_error[layer], B, num, next);
+                                           d_error[layer], B, num, num_next);
+        CUDA_CHECK(cudaDeviceSynchronize());
 
         if (m_use_batch_norm && layer < static_cast<int>(m_layers) - 1) {
-            // Compute batch norm gradients
-            compute_bn_grad_batched_on_gpu(d_error[layer], d_hats[layer], d_gamma_grad[layer], 
-                                          d_beta_grad[layer], B, num);
+            // Compute dL/dy = dL/da * act'(y) where y is the input to the activation (post-BN)
+            compute_delta_from_error_on_gpu(d_error[layer], d_pre_acts[layer], 
+                                           d_layer_deltas[layer], B, num, act_type);
+            CUDA_CHECK(cudaDeviceSynchronize());
 
-            // Update errors for batch norm
-            update_error_for_bn_on_gpu(d_error[layer], d_gammas[layer], d_variance[layer], 
-                                      m_bn_epsilon, B, num);
+            // Compute batch norm gradients using dL/dy
+            compute_bn_grad_batched_on_gpu(d_layer_deltas[layer], d_hats[layer], 
+                                          d_gamma_grad[layer], d_beta_grad[layer], B, num);
+            CUDA_CHECK(cudaDeviceSynchronize());
+
+            // Start with the main term: dL/dz ≈ dL/dy * (gamma / stddev)
+            update_error_for_bn_on_gpu(d_layer_deltas[layer], d_gammas[layer], 
+                                      d_variance[layer], m_bn_epsilon, B, num);
+            CUDA_CHECK(cudaDeviceSynchronize());
+
+            // Apply corrections for exact BN backprop (accounting for mean/var dependencies)
+            apply_bn_backprop_correction_on_gpu(d_layer_deltas[layer], d_hats[layer], 
+                                               d_gammas[layer], d_gamma_grad[layer], 
+                                               d_beta_grad[layer], d_variance[layer], 
+                                               m_bn_epsilon, B, num);
+            CUDA_CHECK(cudaDeviceSynchronize());
+
+            // Now d_layer_deltas = exact dL/dx for weight updates
+        } else {
+            // Non-BN: dL/dpre = dL/da * act'(pre)
+            compute_delta_from_error_on_gpu(d_error[layer], d_pre_acts[layer], 
+                                           d_layer_deltas[layer], B, num, act_type);
+            CUDA_CHECK(cudaDeviceSynchronize());
         }
-
-        // Compute deltas
-        compute_delta_from_error_on_gpu(d_error[layer], d_pre_acts[layer], d_layer_deltas[layer], 
-                                       B, num, act_type);
     }
 }
 
@@ -351,6 +399,9 @@ void network::train(const std::vector<std::vector<float>>& inputs,
         indices[i] = i;
     }
 
+    // Adam iteration counter
+    int t = 0;
+
     for (size_t epoch = 0; epoch < m_epochs; ++epoch) {
         std::shuffle(indices.begin(), indices.end(), gen);
         float total_error = 0.0f;
@@ -369,7 +420,12 @@ void network::train(const std::vector<std::vector<float>>& inputs,
 
             // Forward and backward pass
             forward_propagate(batch_inputs, true);
+            CUDA_CHECK(cudaDeviceSynchronize());
             backpropagate(batch_targets);
+            CUDA_CHECK(cudaDeviceSynchronize());
+
+            // Increment Adam iteration counter
+            t++;
 
             // Compute gradients on GPU
             for (size_t layer = 1; layer < m_layers; ++layer) {
@@ -383,28 +439,36 @@ void network::train(const std::vector<std::vector<float>>& inputs,
                                          &alpha, d_layer_deltas[layer], num, 
                                          d_layer_outputs[layer - 1], prev, 
                                          &beta, d_weight_gradients[layer], num));
+                CUDA_CHECK(cudaDeviceSynchronize());
 
                 // Compute bias gradients (sum deltas over batch)
                 CUBLAS_CHECK(cublasSgemv(m_cublas_handle, CUBLAS_OP_N, num, current_batch_size,
                                          &alpha, d_layer_deltas[layer], num, d_ones, 1,
                                          &beta, d_bias_gradients[layer], 1));
+                CUDA_CHECK(cudaDeviceSynchronize());
 
-                // Update parameters on GPU
-                update_parameters_on_gpu(d_weights[layer], d_weight_gradients[layer], d_weight_velocity[layer],
-                                         d_biases[layer], d_bias_gradients[layer], d_bias_velocity[layer],
-                                         (m_use_batch_norm && layer < m_layers - 1) ? d_gammas[layer] : nullptr,
-                                         (m_use_batch_norm && layer < m_layers - 1) ? d_gamma_grad[layer] : nullptr,
-                                         (m_use_batch_norm && layer < m_layers - 1) ? d_betas[layer] : nullptr,
-                                         (m_use_batch_norm && layer < m_layers - 1) ? d_beta_grad[layer] : nullptr,
-                                         m_learning_rate, m_momentum, prev * num, num,
-                                         m_use_batch_norm && layer < m_layers - 1);
+                // Update parameters using Adam on GPU
+                adam_update_on_gpu(d_weights[layer], d_weight_gradients[layer], d_weight_m[layer], d_weight_v[layer],
+                                   d_biases[layer], d_bias_gradients[layer], d_bias_m[layer], d_bias_v[layer],
+                                   (m_use_batch_norm && layer < m_layers - 1) ? d_gammas[layer] : nullptr,
+                                   (m_use_batch_norm && layer < m_layers - 1) ? d_gamma_grad[layer] : nullptr,
+                                   (m_use_batch_norm && layer < m_layers - 1) ? d_gamma_m[layer] : nullptr,
+                                   (m_use_batch_norm && layer < m_layers - 1) ? d_gamma_v[layer] : nullptr,
+                                   (m_use_batch_norm && layer < m_layers - 1) ? d_betas[layer] : nullptr,
+                                   (m_use_batch_norm && layer < m_layers - 1) ? d_beta_grad[layer] : nullptr,
+                                   (m_use_batch_norm && layer < m_layers - 1) ? d_beta_m[layer] : nullptr,
+                                   (m_use_batch_norm && layer < m_layers - 1) ? d_beta_v[layer] : nullptr,
+                                   m_learning_rate, m_beta1, m_beta2, m_epsilon, prev * num, num, t,
+                                   m_use_batch_norm && layer < m_layers - 1);
+                CUDA_CHECK(cudaDeviceSynchronize());
             }
 
-            // Compute batch error (still on CPU for simplicity)
+            // Compute batch error (on CPU for simplicity)
             std::vector<float> h_output(current_batch_size * m_number_of_neurons_per_layer[m_layers - 1]);
             CUDA_CHECK(cudaMemcpy(h_output.data(), d_layer_outputs[m_layers - 1], 
                                  current_batch_size * m_number_of_neurons_per_layer[m_layers - 1] * sizeof(float), 
                                  cudaMemcpyDeviceToHost));
+            CUDA_CHECK(cudaDeviceSynchronize());
 
             for (size_t b = 0; b < current_batch_size; ++b) {
                 size_t idx = indices[batch_start + b];
@@ -428,7 +492,7 @@ void network::train(const std::vector<std::vector<float>>& inputs,
 }
 
 float network::evaluate(const std::vector<std::vector<float>>& inputs,
-                        const std::vector<std::vector<float>>& targets) {
+                       const std::vector<std::vector<float>>& targets) {
     if (inputs.size() != targets.size()) {
         throw std::invalid_argument("Number of inputs must match number of targets");
     }
@@ -455,6 +519,7 @@ std::vector<float> network::predict(const std::vector<float>& input) {
     std::vector<float> output(output_dim);
     CUDA_CHECK(cudaMemcpy(output.data(), d_layer_outputs[m_layers - 1], 
                          output_dim * sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaDeviceSynchronize());
     return output;
 }
 
