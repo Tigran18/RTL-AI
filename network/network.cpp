@@ -3,7 +3,9 @@
 #include <cublas_v2.h>
 #include <stdexcept>
 #include <numeric>
+#include <cmath>
 
+// Error checking macros
 #define CUDA_CHECK(err) do { \
     if (err != cudaSuccess) { \
         std::cerr << "CUDA error at " << __FILE__ << ":" << __LINE__ << ": " \
@@ -19,153 +21,117 @@
     } \
 } while(0)
 
-extern "C" void compute_activation_on_gpu(double* input, double* output, int size, int act_type);
-extern "C" void compute_batch_norm_on_gpu(double* input, double* output, double mean, double variance, double gamma, double beta, double epsilon, int size);
-
-network::neuron::neuron(size_t number_of_weights, std::mt19937& gen)
+// Neuron implementation
+network::neuron::neuron(size_t number_of_weights, std::mt19937& gen) 
     : m_number_of_weights(number_of_weights), m_bias(generate_random_value(gen)) {
     std::cout << "Creating neuron with " << number_of_weights << " weights" << std::endl << std::flush;
     for (size_t i = 0; i < number_of_weights; ++i) {
         m_weights.push_back(generate_random_value(gen));
-        m_weight_updates.push_back(0.0);
+        m_weight_updates.push_back(0.0f);
     }
 }
 
-network::neuron::~neuron() {
-    free_gpu_memory();
-}
-
-void network::neuron::allocate_gpu_memory() {
-    std::cout << "Allocating GPU memory for neuron with " << m_number_of_weights << " weights" << std::endl << std::flush;
-    if (m_number_of_weights > 0) {
-        if (d_weights || d_inputs || d_weight_updates || d_output) {
-            std::cerr << "Warning: GPU memory already allocated for neuron" << std::endl << std::flush;
-            free_gpu_memory();
-        }
-        CUDA_CHECK(cudaMalloc(&d_weights, m_number_of_weights * sizeof(double)));
-        CUDA_CHECK(cudaMalloc(&d_inputs, m_number_of_weights * sizeof(double)));
-        CUDA_CHECK(cudaMalloc(&d_weight_updates, m_number_of_weights * sizeof(double)));
-        CUDA_CHECK(cudaMalloc(&d_output, sizeof(double)));
-        sync_weights_to_device();
-        CUDA_CHECK(cudaMemset(d_weight_updates, 0, m_number_of_weights * sizeof(double)));
-    }
-}
-
-void network::neuron::free_gpu_memory() {
-    std::cout << "Freeing GPU memory for neuron" << std::endl << std::flush;
-    if (d_weights) { CUDA_CHECK(cudaFree(d_weights)); d_weights = nullptr; }
-    if (d_inputs) { CUDA_CHECK(cudaFree(d_inputs)); d_inputs = nullptr; }
-    if (d_weight_updates) { CUDA_CHECK(cudaFree(d_weight_updates)); d_weight_updates = nullptr; }
-    if (d_output) { CUDA_CHECK(cudaFree(d_output)); d_output = nullptr; }
-}
-
-void network::neuron::sync_weights_to_device() {
-    if (m_number_of_weights > 0) {
-        CUDA_CHECK(cudaMemcpy(d_weights, m_weights.data(), m_number_of_weights * sizeof(double), cudaMemcpyHostToDevice));
-    }
-}
-
-void network::neuron::sync_weights_to_host() const {
-    if (m_number_of_weights > 0) {
-        CUDA_CHECK(cudaMemcpy(const_cast<double*>(m_weights.data()), d_weights, m_number_of_weights * sizeof(double), cudaMemcpyDeviceToHost));
-    }
-}
-
-double network::neuron::generate_random_value(std::mt19937& gen) {
-    double range = (m_number_of_weights > 0) ? 1.0 / m_number_of_weights : 1.0;
-    std::uniform_real_distribution<double> dis(-range, range);
+float network::neuron::generate_random_value(std::mt19937& gen) {
+    float range = (m_number_of_weights > 0) ? 1.0f / sqrtf(static_cast<float>(m_number_of_weights)) : 1.0f;
+    std::uniform_real_distribution<float> dis(-range, range);
     return dis(gen);
 }
 
-void network::neuron::set_inputs(const std::vector<double>& inputs) {
-    m_inputs = inputs;
-    if (m_number_of_weights > 0) {
-        CUDA_CHECK(cudaMemcpy(d_inputs, m_inputs.data(), m_number_of_weights * sizeof(double), cudaMemcpyHostToDevice));
-    }
-}
-
-double network::neuron::activate(double x, ActivationType type) const {
-    switch (type) {
-        case ActivationType::Sigmoid: return 1.0 / (1.0 + std::exp(-x));
-        case ActivationType::ReLU: return std::max(0.0, x);
-        case ActivationType::Tanh: return std::tanh(x);
-        default: throw std::invalid_argument("Unknown activation type");
-    }
-}
-
-double network::neuron::activate_derivative(double x, ActivationType type) const {
-    switch (type) {
-        case ActivationType::Sigmoid: { double sig = activate(x, ActivationType::Sigmoid); return sig * (1.0 - sig); }
-        case ActivationType::ReLU: return x > 0 ? 1.0 : 0.0;
-        case ActivationType::Tanh: { double t = std::tanh(x); return 1.0 - t * t; }
-        default: throw std::invalid_argument("Unknown activation type");
-    }
-}
-
-double network::neuron::compute_output(ActivationType type, bool use_bn, double bn_mean,
-                                      double bn_variance, double bn_gamma, double bn_beta,
-                                      bool training, double epsilon, cublasHandle_t cublas_handle) {
-    double h_output = 0.0;
-    if (m_number_of_weights > 0) {
-        CUBLAS_CHECK(cublasDdot(cublas_handle, m_number_of_weights, d_weights, 1, d_inputs, 1, &h_output));
-        h_output += m_bias;
-    } else {
-        h_output = m_bias; // For input layer neurons
-    }
-    m_z = h_output;
-
-    CUDA_CHECK(cudaMemcpy(d_output, &h_output, sizeof(double), cudaMemcpyHostToDevice));
-    compute_activation_on_gpu(d_output, d_output, 1, static_cast<int>(type));
-    CUDA_CHECK(cudaMemcpy(&m_output, d_output, sizeof(double), cudaMemcpyDeviceToHost));
-
-    if (use_bn && training) {
-        CUDA_CHECK(cudaMemcpy(d_output, &m_output, sizeof(double), cudaMemcpyHostToDevice));
-        compute_batch_norm_on_gpu(d_output, d_output, bn_mean, bn_variance, bn_gamma, bn_beta, epsilon, 1);
-        CUDA_CHECK(cudaDeviceSynchronize());
-        CUDA_CHECK(cudaMemcpy(&m_output, d_output, sizeof(double), cudaMemcpyDeviceToHost));
-        m_bn_normalized = m_output;
-    } else if (use_bn) {
-        CUDA_CHECK(cudaMemcpy(d_output, &m_output, sizeof(double), cudaMemcpyHostToDevice));
-        compute_batch_norm_on_gpu(d_output, d_output, m_bn_mean, m_bn_variance, bn_gamma, bn_beta, epsilon, 1);
-        CUDA_CHECK(cudaDeviceSynchronize());
-        CUDA_CHECK(cudaMemcpy(&m_output, d_output, sizeof(double), cudaMemcpyDeviceToHost));
-    }
-
-    return m_output;
-}
-
+// Network implementation
 network::network(std::vector<size_t> number_of_neurons_per_layer,
                 std::vector<ActivationType> activations,
-                double learning_rate, size_t epochs, size_t batch_size, double momentum, bool use_batch_norm)
+                float learning_rate, size_t epochs, size_t batch_size, 
+                float momentum, bool use_batch_norm)
     : m_number_of_neurons_per_layer(number_of_neurons_per_layer),
       m_learning_rate(learning_rate), m_epochs(epochs), m_batch_size(batch_size),
       m_momentum(momentum), m_activations(activations), m_use_batch_norm(use_batch_norm) {
-    std::cout << "Initializing network with " << number_of_neurons_per_layer.size() << " layers..." << std::endl << std::flush;
+    std::cout << "Initializing network with " << number_of_neurons_per_layer.size() 
+              << " layers..." << std::endl << std::flush;
     m_layers = number_of_neurons_per_layer.size();
-    if (m_batch_size == 0) throw std::invalid_argument("Batch size must be greater than 0");
-    if (m_momentum < 0.0 || m_momentum > 1.0) throw std::invalid_argument("Momentum must be between 0 and 1");
-    if (activations.size() != m_layers - 1) throw std::invalid_argument("Number of activations must match number of non-input layers");
-    std::mt19937 gen(std::random_device{}());
     
-    // Create neurons without GPU allocation
+    // Validate parameters
+    if (m_batch_size == 0) throw std::invalid_argument("Batch size must be greater than 0");
+    if (m_momentum < 0.0f || m_momentum > 1.0f) throw std::invalid_argument("Momentum must be between 0 and 1");
+    if (activations.size() != m_layers - 1) throw std::invalid_argument("Number of activations must match number of non-input layers");
+    
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Initialize neurons
     for (size_t layer = 0; layer < m_layers; ++layer) {
-        m_network.push_back(std::vector<neuron>());
+        m_network.emplace_back();
         size_t prev_layer_size = (layer == 0) ? 0 : m_number_of_neurons_per_layer[layer - 1];
         for (size_t neuron_idx = 0; neuron_idx < m_number_of_neurons_per_layer[layer]; ++neuron_idx) {
             m_network[layer].emplace_back(prev_layer_size, gen);
         }
     }
-    
-    // Allocate GPU memory for neurons after creation
-    for (size_t layer = 0; layer < m_layers; ++layer) {
-        for (size_t neuron_idx = 0; neuron_idx < m_network[layer].size(); ++neuron_idx) {
-            if (m_network[layer][neuron_idx].m_number_of_weights > 0) {
-                std::cout << "Allocating GPU memory for neuron " << neuron_idx << " in layer " << layer << std::endl << std::flush;
-                m_network[layer][neuron_idx].allocate_gpu_memory();
+
+    // Initialize GPU memory for weights and biases
+    d_weights.resize(m_layers, nullptr);
+    d_biases.resize(m_layers, nullptr);
+    d_gammas.resize(m_layers, nullptr);
+    d_betas.resize(m_layers, nullptr);
+    d_hats.resize(m_layers, nullptr);
+    d_mean.resize(m_layers, nullptr);
+    d_variance.resize(m_layers, nullptr);
+    d_gamma_grad.resize(m_layers, nullptr);
+    d_beta_grad.resize(m_layers, nullptr);
+    d_error.resize(m_layers, nullptr);
+    d_weight_gradients.resize(m_layers, nullptr);
+    d_bias_gradients.resize(m_layers, nullptr);
+    d_weight_velocity.resize(m_layers, nullptr);
+    d_bias_velocity.resize(m_layers, nullptr);
+
+    for (size_t layer = 1; layer < m_layers; ++layer) {
+        size_t num = m_number_of_neurons_per_layer[layer];
+        size_t prev = m_number_of_neurons_per_layer[layer - 1];
+
+        // Allocate and copy weights
+        float* h_weights = new float[prev * num];
+        float* h_biases = new float[num];
+        float* h_gammas = new float[num];
+        float* h_betas = new float[num];
+
+        for (size_t out = 0; out < num; ++out) {
+            const auto& n = m_network[layer][out];
+            for (size_t in = 0; in < prev; ++in) {
+                h_weights[in * num + out] = n.m_weights[in];
             }
+            h_biases[out] = n.m_bias;
+            h_gammas[out] = n.m_bn_gamma;
+            h_betas[out] = n.m_bn_beta;
         }
+
+        CUDA_CHECK(cudaMalloc(&d_weights[layer], prev * num * sizeof(float)));
+        CUDA_CHECK(cudaMemcpy(d_weights[layer], h_weights, prev * num * sizeof(float), 
+                             cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMalloc(&d_biases[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMemcpy(d_biases[layer], h_biases, num * sizeof(float), 
+                             cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMalloc(&d_gammas[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMemcpy(d_gammas[layer], h_gammas, num * sizeof(float), 
+                             cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMalloc(&d_betas[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMemcpy(d_betas[layer], h_betas, num * sizeof(float), 
+                             cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMalloc(&d_mean[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_variance[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_gamma_grad[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_beta_grad[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_error[layer], m_batch_size * num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_weight_gradients[layer], prev * num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_bias_gradients[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_weight_velocity[layer], prev * num * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_bias_velocity[layer], num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_weight_velocity[layer], 0, prev * num * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_bias_velocity[layer], 0, num * sizeof(float)));
+
+        delete[] h_weights;
+        delete[] h_biases;
+        delete[] h_gammas;
+        delete[] h_betas;
     }
-    
+
     initialize_gpu();
 }
 
@@ -179,131 +145,193 @@ void network::initialize_gpu() {
     CUDA_CHECK(cudaMemGetInfo(&free_mem, &total_mem));
     std::cout << "GPU memory: " << free_mem / (1024.0 * 1024.0) << " MB free of " 
               << total_mem / (1024.0 * 1024.0) << " MB total" << std::endl << std::flush;
+    
     CUBLAS_CHECK(cublasCreate(&m_cublas_handle));
-    d_layer_outputs.resize(m_layers);
-    d_layer_deltas.resize(m_layers);
+    
+    // Allocate memory for batched operations
+    d_layer_outputs.resize(m_layers, nullptr);
+    d_pre_acts.resize(m_layers, nullptr);
+    d_layer_deltas.resize(m_layers, nullptr);
+
     for (size_t layer = 0; layer < m_layers; ++layer) {
-        std::cout << "Allocating GPU memory for layer " << layer << " with " 
-                  << m_number_of_neurons_per_layer[layer] << " neurons" << std::endl << std::flush;
-        CUDA_CHECK(cudaMalloc(&d_layer_outputs[layer], m_number_of_neurons_per_layer[layer] * sizeof(double)));
-        CUDA_CHECK(cudaMalloc(&d_layer_deltas[layer], m_number_of_neurons_per_layer[layer] * sizeof(double)));
+        size_t size = m_batch_size * m_number_of_neurons_per_layer[layer];
+        CUDA_CHECK(cudaMalloc(&d_layer_outputs[layer], size * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_pre_acts[layer], size * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&d_layer_deltas[layer], size * sizeof(float)));
+        if (layer > 0 && m_use_batch_norm && layer < m_layers - 1) {
+            CUDA_CHECK(cudaMalloc(&d_hats[layer], size * sizeof(float)));
+        }
     }
+
+    // Pre-allocate d_ones
+    CUDA_CHECK(cudaMalloc(&d_ones, m_batch_size * sizeof(float)));
+    CUDA_CHECK(cudaMemset(d_ones, 1, m_batch_size * sizeof(float)));
+
+    // Get optimal block size
+    cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+    m_block_size = prop.warpSize * 4; // Example: 128 for many GPUs
 }
 
 void network::cleanup_gpu() {
     std::cout << "Cleaning up GPU resources..." << std::endl << std::flush;
     CUBLAS_CHECK(cublasDestroy(m_cublas_handle));
-    for (auto ptr : d_layer_outputs) CUDA_CHECK(cudaFree(ptr));
-    for (auto ptr : d_layer_deltas) CUDA_CHECK(cudaFree(ptr));
+    for (size_t layer = 0; layer < m_layers; ++layer) {
+        if (d_layer_outputs[layer]) CUDA_CHECK(cudaFree(d_layer_outputs[layer]));
+        if (d_pre_acts[layer]) CUDA_CHECK(cudaFree(d_pre_acts[layer]));
+        if (d_layer_deltas[layer]) CUDA_CHECK(cudaFree(d_layer_deltas[layer]));
+        if (d_weights[layer]) CUDA_CHECK(cudaFree(d_weights[layer]));
+        if (d_biases[layer]) CUDA_CHECK(cudaFree(d_biases[layer]));
+        if (d_gammas[layer]) CUDA_CHECK(cudaFree(d_gammas[layer]));
+        if (d_betas[layer]) CUDA_CHECK(cudaFree(d_betas[layer]));
+        if (d_hats[layer]) CUDA_CHECK(cudaFree(d_hats[layer]));
+        if (d_mean[layer]) CUDA_CHECK(cudaFree(d_mean[layer]));
+        if (d_variance[layer]) CUDA_CHECK(cudaFree(d_variance[layer]));
+        if (d_gamma_grad[layer]) CUDA_CHECK(cudaFree(d_gamma_grad[layer]));
+        if (d_beta_grad[layer]) CUDA_CHECK(cudaFree(d_beta_grad[layer]));
+        if (d_error[layer]) CUDA_CHECK(cudaFree(d_error[layer]));
+        if (d_weight_gradients[layer]) CUDA_CHECK(cudaFree(d_weight_gradients[layer]));
+        if (d_bias_gradients[layer]) CUDA_CHECK(cudaFree(d_bias_gradients[layer]));
+        if (d_weight_velocity[layer]) CUDA_CHECK(cudaFree(d_weight_velocity[layer]));
+        if (d_bias_velocity[layer]) CUDA_CHECK(cudaFree(d_bias_velocity[layer]));
+    }
+    if (d_ones) CUDA_CHECK(cudaFree(d_ones));
 }
 
-void network::forward_propagate(const std::vector<double>& input_values, bool training) {
-    if (input_values.size() != m_number_of_neurons_per_layer[0]) {
+void network::forward_propagate(const std::vector<std::vector<float>>& batch_inputs, bool training) {
+    size_t B = batch_inputs.size();
+    if (B == 0) return;
+    size_t input_dim = m_number_of_neurons_per_layer[0];
+    if (batch_inputs[0].size() != input_dim) 
         throw std::out_of_range("Input size does not match input layer size.");
-    }
-    CUDA_CHECK(cudaMemcpy(d_layer_outputs[0], input_values.data(), input_values.size() * sizeof(double), cudaMemcpyHostToDevice));
 
+    // Copy batched inputs to GPU
+    std::vector<float> h_batch(B * input_dim);
+    for (size_t i = 0; i < B; ++i) {
+        memcpy(&h_batch[i * input_dim], batch_inputs[i].data(), input_dim * sizeof(float));
+    }
+    CUDA_CHECK(cudaMemcpy(d_layer_outputs[0], h_batch.data(), B * input_dim * sizeof(float), 
+                         cudaMemcpyHostToDevice));
+
+    // Forward pass through layers
     for (size_t layer = 1; layer < m_layers; ++layer) {
-        std::vector<double> prev_outputs(m_number_of_neurons_per_layer[layer - 1]);
-        CUDA_CHECK(cudaMemcpy(prev_outputs.data(), d_layer_outputs[layer - 1], 
-                             m_number_of_neurons_per_layer[layer - 1] * sizeof(double), cudaMemcpyDeviceToHost));
-        
-        std::vector<double> layer_outputs(m_number_of_neurons_per_layer[layer]);
-        double batch_mean = 0.0, batch_variance = 0.0;
-        
-        if (m_use_batch_norm && layer < m_layers - 1 && training) {
-            for (size_t i = 0; i < m_network[layer].size(); ++i) {
-                auto& neuron = m_network[layer][i];
-                neuron.set_inputs(prev_outputs);
-                layer_outputs[i] = neuron.compute_output(m_activations[layer - 1], false, 0.0, 1.0, 1.0, 0.0, false, m_bn_epsilon, m_cublas_handle);
-            }
-            if (!layer_outputs.empty()) {
-                batch_mean = std::accumulate(layer_outputs.begin(), layer_outputs.end(), 0.0) / layer_outputs.size();
-                batch_variance = 0.0;
-                for (const auto& output : layer_outputs) {
-                    batch_variance += std::pow(output - batch_mean, 2);
+        size_t num = m_number_of_neurons_per_layer[layer];
+        size_t prev = m_number_of_neurons_per_layer[layer - 1];
+        int act_type = static_cast<int>(m_activations[layer - 1]);
+
+        // Linear transformation using cuBLAS
+        float alpha = 1.0f, beta = 0.0f;
+        CUBLAS_CHECK(cublasSgemm(m_cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, num, B, prev, 
+                                 &alpha, d_weights[layer], num, d_layer_outputs[layer - 1], prev, 
+                                 &beta, d_pre_acts[layer], num));
+
+        if (m_use_batch_norm && layer < m_layers - 1) {
+            // Compute batch statistics
+            compute_batch_norm_stats_batched_on_gpu(d_pre_acts[layer], d_mean[layer], 
+                                                   d_variance[layer], B, num, m_block_size);
+
+            if (training) {
+                // Update running statistics (still on CPU for simplicity, but low overhead)
+                std::vector<float> h_mean(num), h_variance(num);
+                CUDA_CHECK(cudaMemcpy(h_mean.data(), d_mean[layer], num * sizeof(float), 
+                                     cudaMemcpyDeviceToHost));
+                CUDA_CHECK(cudaMemcpy(h_variance.data(), d_variance[layer], num * sizeof(float), 
+                                     cudaMemcpyDeviceToHost));
+
+                for (size_t j = 0; j < num; ++j) {
+                    m_network[layer][j].m_bn_mean = (1 - m_bn_momentum) * h_mean[j] + 
+                                                   m_bn_momentum * m_network[layer][j].m_bn_mean;
+                    m_network[layer][j].m_bn_variance = (1 - m_bn_momentum) * h_variance[j] + 
+                                                       m_bn_momentum * m_network[layer][j].m_bn_variance;
                 }
-                batch_variance = layer_outputs.size() > 1 ? batch_variance / (layer_outputs.size() - 1) : 1.0;
+
+                // Apply batch normalization
+                compute_batch_norm_batched_on_gpu(d_pre_acts[layer], d_layer_outputs[layer], 
+                                                 d_mean[layer], d_variance[layer], d_gammas[layer], 
+                                                 d_betas[layer], m_bn_epsilon, B, num, d_hats[layer]);
             } else {
-                batch_variance = 1.0;
+                // Use running statistics for inference
+                std::vector<float> h_mean(num), h_variance(num);
+                for (size_t j = 0; j < num; ++j) {
+                    h_mean[j] = m_network[layer][j].m_bn_mean;
+                    h_variance[j] = m_network[layer][j].m_bn_variance;
+                }
+                CUDA_CHECK(cudaMemcpy(d_mean[layer], h_mean.data(), num * sizeof(float), 
+                                     cudaMemcpyHostToDevice));
+                CUDA_CHECK(cudaMemcpy(d_variance[layer], h_variance.data(), num * sizeof(float), 
+                                     cudaMemcpyHostToDevice));
+
+                compute_batch_norm_batched_on_gpu(d_pre_acts[layer], d_layer_outputs[layer], 
+                                                 d_mean[layer], d_variance[layer], d_gammas[layer], 
+                                                 d_betas[layer], m_bn_epsilon, B, num, nullptr);
             }
-            for (auto& neuron : m_network[layer]) {
-                neuron.m_bn_mean = 0.1 * batch_mean + 0.9 * neuron.m_bn_mean;
-                neuron.m_bn_variance = 0.1 * batch_variance + 0.9 * neuron.m_bn_variance;
-            }
+
+            // Apply fused activation on normalized outputs
+            fused_bias_activation_on_gpu(d_layer_outputs[layer], nullptr, d_layer_outputs[layer], B, num, act_type);
+        } else {
+            // Fused bias and activation (bias added here since no BN)
+            fused_bias_activation_on_gpu(d_pre_acts[layer], d_biases[layer], d_layer_outputs[layer], B, num, act_type);
+            CUDA_CHECK(cudaMemcpy(d_pre_acts[layer], d_layer_outputs[layer], 
+                                 B * num * sizeof(float), cudaMemcpyDeviceToDevice));
         }
-        
-        for (size_t i = 0; i < m_network[layer].size(); ++i) {
-            auto& neuron = m_network[layer][i];
-            neuron.set_inputs(prev_outputs);
-            layer_outputs[i] = neuron.compute_output(m_activations[layer - 1], m_use_batch_norm && layer < m_layers - 1,
-                                                   batch_mean, batch_variance, neuron.m_bn_gamma, neuron.m_bn_beta, 
-                                                   training, m_bn_epsilon, m_cublas_handle);
-        }
-        
-        CUDA_CHECK(cudaMemcpy(d_layer_outputs[layer], layer_outputs.data(), 
-                             m_number_of_neurons_per_layer[layer] * sizeof(double), cudaMemcpyHostToDevice));
     }
 }
 
-void network::backpropagate(const std::vector<double>& target_values) {
-    if (target_values.size() != m_network.back().size()) {
+void network::backpropagate(const std::vector<std::vector<float>>& batch_targets) {
+    size_t B = batch_targets.size();
+    size_t output_dim = m_number_of_neurons_per_layer[m_layers - 1];
+    if (batch_targets[0].size() != output_dim) 
         throw std::out_of_range("Target size does not match output layer size.");
-    }
-    auto& output_layer = m_network.back();
-    std::vector<double> output_deltas(output_layer.size());
-    for (size_t i = 0; i < output_layer.size(); ++i) {
-        double error = target_values[i] - output_layer[i].m_output;
-        output_deltas[i] = error * output_layer[i].activate_derivative(
-            output_layer[i].m_z, m_activations[m_layers - 2]);
-    }
-    CUDA_CHECK(cudaMemcpy(d_layer_deltas[m_layers - 1], output_deltas.data(),
-                         output_deltas.size() * sizeof(double), cudaMemcpyHostToDevice));
 
-    for (int layer = static_cast<int>(m_layers) - 2; layer > 0; --layer) {
-        std::vector<double> layer_outputs;
-        for (const auto& neuron : m_network[layer]) {
-            layer_outputs.push_back(neuron.m_output);
-        }
-        double batch_mean = 0.0, batch_variance = 0.0;
+    // Copy batched targets to GPU
+    std::vector<float> h_targets(B * output_dim);
+    for (size_t i = 0; i < B; ++i) {
+        memcpy(&h_targets[i * output_dim], batch_targets[i].data(), output_dim * sizeof(float));
+    }
+
+    float* d_targets = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_targets, B * output_dim * sizeof(float)));
+    CUDA_CHECK(cudaMemcpy(d_targets, h_targets.data(), B * output_dim * sizeof(float), 
+                         cudaMemcpyHostToDevice));
+
+    // Compute output layer deltas
+    int act_type = static_cast<int>(m_activations[m_layers - 2]);
+    compute_output_delta_batched_on_gpu(d_layer_outputs[m_layers - 1], d_pre_acts[m_layers - 1], 
+                                       d_targets, d_layer_deltas[m_layers - 1], B, output_dim, 
+                                       act_type);
+
+    CUDA_CHECK(cudaFree(d_targets));
+
+    // Backpropagate through hidden layers
+    for (int layer = m_layers - 2; layer >= 1; --layer) {
+        size_t num = m_number_of_neurons_per_layer[layer];
+        size_t next = m_number_of_neurons_per_layer[layer + 1];
+        act_type = static_cast<int>(m_activations[layer - 1]);
+
+        // Compute errors for current layer
+        compute_hidden_delta_batched_on_gpu(d_layer_deltas[layer + 1], d_weights[layer + 1], 
+                                           d_error[layer], B, num, next);
+
         if (m_use_batch_norm && layer < static_cast<int>(m_layers) - 1) {
-            if (!layer_outputs.empty()) {
-                batch_mean = std::accumulate(layer_outputs.begin(), layer_outputs.end(), 0.0) / layer_outputs.size();
-                batch_variance = 0.0;
-                for (const auto& output : layer_outputs) {
-                    batch_variance += std::pow(output - batch_mean, 2);
-                }
-                batch_variance = layer_outputs.size() > 1 ? batch_variance / (layer_outputs.size() - 1) : 1.0;
-            } else {
-                batch_variance = 1.0;
-            }
+            // Compute batch norm gradients
+            compute_bn_grad_batched_on_gpu(d_error[layer], d_hats[layer], d_gamma_grad[layer], 
+                                          d_beta_grad[layer], B, num);
+
+            // Update errors for batch norm
+            update_error_for_bn_on_gpu(d_error[layer], d_gammas[layer], d_variance[layer], 
+                                      m_bn_epsilon, B, num);
         }
-        std::vector<double> layer_deltas(m_network[layer].size());
-        for (size_t i = 0; i < m_network[layer].size(); ++i) {
-            double error = 0.0;
-            for (size_t j = 0; j < m_network[layer + 1].size(); ++j) {
-                double next_delta;
-                CUDA_CHECK(cudaMemcpy(&next_delta, d_layer_deltas[layer + 1] + j, sizeof(double), cudaMemcpyDeviceToHost));
-                error += m_network[layer + 1][j].m_weights[i] * next_delta;
-            }
-            if (m_use_batch_norm && layer < static_cast<int>(m_layers) - 1) {
-                double variance_sqrt = std::sqrt(batch_variance + m_bn_epsilon);
-                m_network[layer][i].m_bn_gamma_gradient = error * m_network[layer][i].m_bn_normalized;
-                m_network[layer][i].m_bn_beta_gradient = error;
-                error = error * m_network[layer][i].m_bn_gamma / variance_sqrt;
-            }
-            layer_deltas[i] = error * m_network[layer][i].activate_derivative(
-                m_network[layer][i].m_z, m_activations[layer - 1]);
-        }
-        CUDA_CHECK(cudaMemcpy(d_layer_deltas[layer], layer_deltas.data(),
-                             layer_deltas.size() * sizeof(double), cudaMemcpyHostToDevice));
+
+        // Compute deltas
+        compute_delta_from_error_on_gpu(d_error[layer], d_pre_acts[layer], d_layer_deltas[layer], 
+                                       B, num, act_type);
     }
 }
 
-void network::train(const std::vector<std::vector<double>>& inputs,
-                    const std::vector<std::vector<double>>& targets,
-                    const std::vector<std::vector<double>>& val_inputs,
-                    const std::vector<std::vector<double>>& val_targets) {
+void network::train(const std::vector<std::vector<float>>& inputs,
+                    const std::vector<std::vector<float>>& targets,
+                    const std::vector<std::vector<float>>& val_inputs,
+                    const std::vector<std::vector<float>>& val_targets) {
     std::cout << "Starting training with " << inputs.size() << " samples..." << std::endl << std::flush;
     if (inputs.size() != targets.size()) {
         throw std::invalid_argument("Number of inputs must match number of targets");
@@ -315,80 +343,80 @@ void network::train(const std::vector<std::vector<double>>& inputs,
         std::cout << "No training data provided." << std::endl << std::flush;
         return;
     }
-    std::mt19937 gen(std::random_device{}());
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
     std::vector<size_t> indices(inputs.size());
     for (size_t i = 0; i < indices.size(); ++i) {
         indices[i] = i;
     }
+
     for (size_t epoch = 0; epoch < m_epochs; ++epoch) {
         std::shuffle(indices.begin(), indices.end(), gen);
-        double total_error = 0.0;
+        float total_error = 0.0f;
+
         for (size_t batch_start = 0; batch_start < inputs.size(); batch_start += m_batch_size) {
             size_t current_batch_size = std::min(m_batch_size, inputs.size() - batch_start);
-            std::vector<std::vector<std::vector<double>>> weight_gradients(
-                m_layers, std::vector<std::vector<double>>());
-            std::vector<std::vector<double>> bias_gradients(m_layers);
-            std::vector<std::vector<double>> bn_gamma_gradients(m_layers);
-            std::vector<std::vector<double>> bn_beta_gradients(m_layers);
-            for (size_t layer = 1; layer < m_layers; ++layer) {
-                weight_gradients[layer].resize(m_network[layer].size());
-                bias_gradients[layer].resize(m_network[layer].size(), 0.0);
-                bn_gamma_gradients[layer].resize(m_network[layer].size(), 0.0);
-                bn_beta_gradients[layer].resize(m_network[layer].size(), 0.0);
-                for (size_t j = 0; j < m_network[layer].size(); ++j) {
-                    weight_gradients[layer][j].resize(m_network[layer][j].m_number_of_weights, 0.0);
-                }
-            }
+            std::vector<std::vector<float>> batch_inputs(current_batch_size);
+            std::vector<std::vector<float>> batch_targets(current_batch_size);
+
+            // Prepare batch
             for (size_t b = 0; b < current_batch_size; ++b) {
                 size_t idx = indices[batch_start + b];
-                forward_propagate(inputs[idx], true);
-                backpropagate(targets[idx]);
-                for (size_t layer = 1; layer < m_layers; ++layer) {
-                    for (size_t j = 0; j < m_network[layer].size(); ++j) {
-                        auto& neuron = m_network[layer][j];
-                        for (size_t k = 0; k < neuron.m_number_of_weights; ++k) {
-                            weight_gradients[layer][j][k] += neuron.m_delta * neuron.m_inputs[k];
-                        }
-                        bias_gradients[layer][j] += neuron.m_delta;
-                        if (m_use_batch_norm && layer < m_layers - 1) {
-                            bn_gamma_gradients[layer][j] += neuron.m_bn_gamma_gradient;
-                            bn_beta_gradients[layer][j] += neuron.m_bn_beta_gradient;
-                        }
-                    }
-                }
+                batch_inputs[b] = inputs[idx];
+                batch_targets[b] = targets[idx];
+            }
+
+            // Forward and backward pass
+            forward_propagate(batch_inputs, true);
+            backpropagate(batch_targets);
+
+            // Compute gradients on GPU
+            for (size_t layer = 1; layer < m_layers; ++layer) {
+                size_t num = m_number_of_neurons_per_layer[layer];
+                size_t prev = m_number_of_neurons_per_layer[layer - 1];
+
+                // Compute weight gradients using cuBLAS (deltas * prev_acts^T)
+                float alpha = 1.0f / current_batch_size, beta = 0.0f;
+                CUBLAS_CHECK(cublasSgemm(m_cublas_handle, CUBLAS_OP_N, CUBLAS_OP_T, 
+                                         num, prev, current_batch_size, 
+                                         &alpha, d_layer_deltas[layer], num, 
+                                         d_layer_outputs[layer - 1], prev, 
+                                         &beta, d_weight_gradients[layer], num));
+
+                // Compute bias gradients (sum deltas over batch)
+                CUBLAS_CHECK(cublasSgemv(m_cublas_handle, CUBLAS_OP_N, num, current_batch_size,
+                                         &alpha, d_layer_deltas[layer], num, d_ones, 1,
+                                         &beta, d_bias_gradients[layer], 1));
+
+                // Update parameters on GPU
+                update_parameters_on_gpu(d_weights[layer], d_weight_gradients[layer], d_weight_velocity[layer],
+                                         d_biases[layer], d_bias_gradients[layer], d_bias_velocity[layer],
+                                         (m_use_batch_norm && layer < m_layers - 1) ? d_gammas[layer] : nullptr,
+                                         (m_use_batch_norm && layer < m_layers - 1) ? d_gamma_grad[layer] : nullptr,
+                                         (m_use_batch_norm && layer < m_layers - 1) ? d_betas[layer] : nullptr,
+                                         (m_use_batch_norm && layer < m_layers - 1) ? d_beta_grad[layer] : nullptr,
+                                         m_learning_rate, m_momentum, prev * num, num,
+                                         m_use_batch_norm && layer < m_layers - 1);
+            }
+
+            // Compute batch error (still on CPU for simplicity)
+            std::vector<float> h_output(current_batch_size * m_number_of_neurons_per_layer[m_layers - 1]);
+            CUDA_CHECK(cudaMemcpy(h_output.data(), d_layer_outputs[m_layers - 1], 
+                                 current_batch_size * m_number_of_neurons_per_layer[m_layers - 1] * sizeof(float), 
+                                 cudaMemcpyDeviceToHost));
+
+            for (size_t b = 0; b < current_batch_size; ++b) {
+                size_t idx = indices[batch_start + b];
                 for (size_t j = 0; j < targets[idx].size(); ++j) {
-                    double diff = targets[idx][j] - m_network.back()[j].m_output;
+                    float diff = h_output[b * targets[idx].size() + j] - targets[idx][j];
                     total_error += diff * diff;
                 }
             }
-            for (size_t layer = 1; layer < m_layers; ++layer) {
-                for (size_t j = 0; j < m_network[layer].size(); ++j) {
-                    auto& neuron = m_network[layer][j];
-                    for (size_t k = 0; k < neuron.m_number_of_weights; ++k) {
-                        double gradient = weight_gradients[layer][j][k] / current_batch_size;
-                        neuron.m_weight_updates[k] = m_momentum * neuron.m_weight_updates[k] +
-                                                    m_learning_rate * gradient;
-                        neuron.m_weights[k] += neuron.m_weight_updates[k];
-                        if (m_number_of_neurons_per_layer[layer] > 0) {
-                            CUDA_CHECK(cudaMemcpy(neuron.d_weights, neuron.m_weights.data(),
-                                                neuron.m_number_of_weights * sizeof(double), cudaMemcpyHostToDevice));
-                        }
-                    }
-                    double bias_gradient = bias_gradients[layer][j] / current_batch_size;
-                    neuron.m_bias_update = m_momentum * neuron.m_bias_update +
-                                          m_learning_rate * bias_gradient;
-                    neuron.m_bias += neuron.m_bias_update;
-                    if (m_use_batch_norm && layer < m_layers - 1) {
-                        double gamma_gradient = bn_gamma_gradients[layer][j] / current_batch_size;
-                        double beta_gradient = bn_beta_gradients[layer][j] / current_batch_size;
-                        neuron.m_bn_gamma += m_learning_rate * gamma_gradient;
-                        neuron.m_bn_beta += m_learning_rate * beta_gradient;
-                    }
-                }
-            }
         }
+
         total_error /= inputs.size();
-        double val_error = val_inputs.empty() ? 0.0 : evaluate(val_inputs, val_targets);
+        float val_error = val_inputs.empty() ? 0.0f : evaluate(val_inputs, val_targets);
         if (epoch % 100 == 0 || epoch == m_epochs - 1) {
             std::cout << "Epoch " << epoch << ", Train MSE: " << total_error;
             if (!val_inputs.empty()) {
@@ -397,45 +425,48 @@ void network::train(const std::vector<std::vector<double>>& inputs,
             std::cout << std::endl << std::flush;
         }
     }
-    std::cout << "Training completed." << std::endl << std::flush;
 }
 
-double network::evaluate(const std::vector<std::vector<double>>& inputs,
-                        const std::vector<std::vector<double>>& targets) {
+float network::evaluate(const std::vector<std::vector<float>>& inputs,
+                        const std::vector<std::vector<float>>& targets) {
     if (inputs.size() != targets.size()) {
         throw std::invalid_argument("Number of inputs must match number of targets");
     }
     if (inputs.empty()) {
         std::cout << "No evaluation data provided." << std::endl << std::flush;
-        return 0.0;
+        return 0.0f;
     }
-    double total_error = 0.0;
+    float total_error = 0.0f;
     for (size_t i = 0; i < inputs.size(); ++i) {
         auto output = predict(inputs[i]);
         for (size_t j = 0; j < targets[i].size(); ++j) {
-            double diff = targets[i][j] - output[j];
+            float diff = targets[i][j] - output[j];
             total_error += diff * diff;
         }
     }
-    double mse = total_error / inputs.size();
+    float mse = total_error / inputs.size();
     std::cout << "Evaluation MSE: " << mse << std::endl << std::flush;
     return mse;
 }
 
-std::vector<double> network::predict(const std::vector<double>& input) {
-    forward_propagate(input, false);
-    std::vector<double> outputs;
-    for (const auto& neuron : m_network.back()) {
-        outputs.push_back(neuron.m_output);
-    }
-    return outputs;
+std::vector<float> network::predict(const std::vector<float>& input) {
+    forward_propagate({input}, false);
+    size_t output_dim = m_number_of_neurons_per_layer[m_layers - 1];
+    std::vector<float> output(output_dim);
+    CUDA_CHECK(cudaMemcpy(output.data(), d_layer_outputs[m_layers - 1], 
+                         output_dim * sizeof(float), cudaMemcpyDeviceToHost));
+    return output;
 }
 
 void network::display_outputs() const {
     for (size_t layer = 0; layer < m_layers; ++layer) {
         std::cout << "Layer " << layer + 1 << " outputs: ";
-        for (const auto& neuron : m_network[layer]) {
-            std::cout << neuron.m_output << " ";
+        size_t num = m_number_of_neurons_per_layer[layer];
+        std::vector<float> h_outputs(num);
+        CUDA_CHECK(cudaMemcpy(h_outputs.data(), d_layer_outputs[layer], 
+                             num * sizeof(float), cudaMemcpyDeviceToHost));
+        for (size_t j = 0; j < num; ++j) {
+            std::cout << h_outputs[j] << " ";
         }
         std::cout << std::endl << std::flush;
     }
@@ -460,9 +491,8 @@ void network::save_model(const std::string& filename) const {
     out << m_use_batch_norm << "\n";
     for (const auto& layer : m_network) {
         for (const auto& neuron : layer) {
-            neuron.sync_weights_to_host();
             out << neuron.m_bias << " ";
-            for (double w : neuron.m_weights) {
+            for (float w : neuron.m_weights) {
                 out << w << " ";
             }
             out << neuron.m_bn_gamma << " " << neuron.m_bn_beta << " ";
@@ -498,7 +528,8 @@ void network::load_model(const std::string& filename) {
     in >> use_bn;
     m_use_batch_norm = use_bn;
     m_network.clear();
-    std::mt19937 gen(std::random_device{}());
+    std::random_device rd;
+    std::mt19937 gen(rd());
     for (size_t layer = 0; layer < m_layers; ++layer) {
         size_t prev_layer_size = (layer == 0) ? 0 : m_number_of_neurons_per_layer[layer - 1];
         std::vector<neuron> layer_neurons;
@@ -509,9 +540,6 @@ void network::load_model(const std::string& filename) {
                 in >> n.m_weights[k];
             }
             in >> n.m_bn_gamma >> n.m_bn_beta >> n.m_bn_mean >> n.m_bn_variance;
-            if (prev_layer_size > 0) {
-                n.allocate_gpu_memory();
-            }
             layer_neurons.push_back(n);
         }
         m_network.push_back(layer_neurons);

@@ -1,98 +1,112 @@
 #pragma once
 #include <vector>
-#include <iostream>
-#include <random>
-#include <cmath>
-#include <fstream>
-#include <stdexcept>
-#include <algorithm>
 #include <string>
-#include <cuda_runtime.h>
-#include <cublas_v2.h>
-
-// Forward declare CUDA kernels
-extern "C" void compute_activation_on_gpu(double* input, double* output, int size, int act_type);
-extern "C" void compute_batch_norm_on_gpu(double* input, double* output, double mean, double variance, double gamma, double beta, double epsilon, int size);
+#include <random>
+#include <fstream>
+#include <iostream>
+#include <cublas_v2.h> // For cublasHandle_t
 
 class network {
 public:
-    enum class ActivationType : int {
-        Sigmoid = 0,
-        ReLU = 1,
-        Tanh = 2
-    };
-private:
-    struct alignas(64) neuron {
-        double m_output = 0.0;
-        double m_bias = 0.0;
-        size_t m_number_of_weights = 0;
-        std::vector<double> m_weights;
-        std::vector<double> m_inputs;
-        double m_delta = 0.0;
-        double m_z = 0.0;
-        std::vector<double> m_weight_updates;
-        double m_bias_update = 0.0;
-        double m_bn_gamma = 1.0;
-        double m_bn_beta = 0.0;
-        double m_bn_mean = 0.0;
-        double m_bn_variance = 1.0;
-        double m_bn_normalized = 0.0;
-        double m_bn_gamma_gradient = 0.0;
-        double m_bn_beta_gradient = 0.0;
+    enum class ActivationType { Sigmoid, ReLU, Tanh };
 
-        double* d_weights = nullptr;
-        double* d_inputs = nullptr;
-        double* d_weight_updates = nullptr;
-        double* d_output = nullptr;
+private:
+    class neuron {
+    public:
+        size_t m_number_of_weights;
+        float m_bias;
+        float m_bias_update;
+        float m_bn_gamma, m_bn_beta;
+        float m_bn_mean, m_bn_variance;
+        std::vector<float> m_weights;
+        std::vector<float> m_weight_updates;
 
         neuron(size_t number_of_weights, std::mt19937& gen);
-        ~neuron();
-        double generate_random_value(std::mt19937& gen);
-        void set_inputs(const std::vector<double>& inputs);
-        double activate(double x, ActivationType type) const;
-        double activate_derivative(double x, ActivationType type) const;
-        double compute_output(ActivationType type, bool use_bn, double bn_mean, double bn_variance,
-                             double bn_gamma, double bn_beta, bool training, double epsilon,
-                             cublasHandle_t cublas_handle);
-        void allocate_gpu_memory();
-        void free_gpu_memory();
-        void sync_weights_to_device();
-        void sync_weights_to_host() const;
+        float generate_random_value(std::mt19937& gen);
     };
 
-    size_t m_layers;
-    std::vector<size_t> m_number_of_neurons_per_layer;
     std::vector<std::vector<neuron>> m_network;
-    double m_learning_rate;
+    std::vector<size_t> m_number_of_neurons_per_layer;
+    std::vector<ActivationType> m_activations;
+    float m_learning_rate;
     size_t m_epochs;
     size_t m_batch_size;
-    double m_momentum;
-    std::vector<ActivationType> m_activations;
-    bool m_use_batch_norm = true;
-    double m_bn_momentum = 0.9;
-    double m_bn_epsilon = 1e-5;
+    float m_momentum;
+    bool m_use_batch_norm;
+    float m_bn_momentum = 0.9f;
+    float m_bn_epsilon = 1e-5f;
+    size_t m_layers;
+
+    // GPU-related members
     cublasHandle_t m_cublas_handle;
-    std::vector<double*> d_layer_outputs;
-    std::vector<double*> d_layer_deltas;
+    std::vector<float*> d_weights;
+    std::vector<float*> d_biases;
+    std::vector<float*> d_layer_outputs;
+    std::vector<float*> d_pre_acts;
+    std::vector<float*> d_layer_deltas;
+    std::vector<float*> d_gammas;
+    std::vector<float*> d_betas;
+    std::vector<float*> d_hats;
+    std::vector<float*> d_mean;
+    std::vector<float*> d_variance;
+    std::vector<float*> d_gamma_grad;
+    std::vector<float*> d_beta_grad;
+    std::vector<float*> d_error;
+    std::vector<float*> d_weight_gradients;
+    std::vector<float*> d_bias_gradients;
+    std::vector<float*> d_weight_velocity;
+    std::vector<float*> d_bias_velocity;
+    float* d_ones = nullptr;
+    int m_block_size;
+
+    void initialize_gpu();
+    void cleanup_gpu();
 
 public:
     network(std::vector<size_t> number_of_neurons_per_layer,
             std::vector<ActivationType> activations,
-            double learning_rate, size_t epochs,
-            size_t batch_size, double momentum, bool use_batch_norm = true);
+            float learning_rate = 0.01f,
+            size_t epochs = 1000,
+            size_t batch_size = 32,
+            float momentum = 0.9f,
+            bool use_batch_norm = false);
     ~network();
-    void forward_propagate(const std::vector<double>& input_values, bool training = true);
-    void backpropagate(const std::vector<double>& target_values);
-    void train(const std::vector<std::vector<double>>& inputs,
-               const std::vector<std::vector<double>>& targets,
-               const std::vector<std::vector<double>>& val_inputs = {},
-               const std::vector<std::vector<double>>& val_targets = {});
-    std::vector<double> predict(const std::vector<double>& input);
-    double evaluate(const std::vector<std::vector<double>>& inputs,
-                    const std::vector<std::vector<double>>& targets);
+
+    void train(const std::vector<std::vector<float>>& inputs,
+               const std::vector<std::vector<float>>& targets,
+               const std::vector<std::vector<float>>& val_inputs = {},
+               const std::vector<std::vector<float>>& val_targets = {});
+    float evaluate(const std::vector<std::vector<float>>& inputs,
+                   const std::vector<std::vector<float>>& targets);
+    std::vector<float> predict(const std::vector<float>& input);
     void display_outputs() const;
     void save_model(const std::string& filename) const;
     void load_model(const std::string& filename);
-    void initialize_gpu();
-    void cleanup_gpu();
+    void forward_propagate(const std::vector<std::vector<float>>& batch_inputs, bool training);
+    void backpropagate(const std::vector<std::vector<float>>& batch_targets);
 };
+
+// CUDA kernel declarations
+extern "C" void fused_bias_activation_on_gpu(float* input, float* biases, float* output, int batch_size, int num, int act_type);
+extern "C" void compute_batch_norm_stats_batched_on_gpu(float* input, float* mean, float* variance, int batch_size, int num_features, int block_size);
+extern "C" void compute_batch_norm_batched_on_gpu(float* input, float* output, float* mean,
+                                                 float* variance, float* gamma, float* beta,
+                                                 float epsilon, int batch_size, int num_features,
+                                                 float* hat);
+extern "C" void compute_output_delta_batched_on_gpu(float* outputs, float* pre_acts, float* targets,
+                                                   float* deltas, int batch_size, int num, int act_type);
+extern "C" void compute_hidden_delta_batched_on_gpu(float* delta_next, float* weights_next,
+                                                   float* errors, int batch_size, int num_current,
+                                                   int num_next);
+extern "C" void compute_bn_grad_batched_on_gpu(float* error, float* hat, float* gamma_grad,
+                                              float* beta_grad, int batch_size, int num);
+extern "C" void update_error_for_bn_on_gpu(float* error, float* gamma, float* variance,
+                                          float epsilon, int batch_size, int num);
+extern "C" void compute_delta_from_error_on_gpu(float* error, float* pre_act, float* delta,
+                                               int batch_size, int num, int act_type);
+extern "C" void update_parameters_on_gpu(float* weights, float* weight_gradients, float* weight_velocity,
+                                         float* biases, float* bias_gradients, float* bias_velocity,
+                                         float* gammas, float* gamma_gradients,
+                                         float* betas, float* beta_gradients,
+                                         float learning_rate, float momentum,
+                                         int num_weights, int num, bool use_bn);
