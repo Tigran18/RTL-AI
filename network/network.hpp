@@ -4,7 +4,7 @@
 #include <random>
 #include <fstream>
 #include <iostream>
-#include <cublas_v2.h> // For cublasHandle_t
+#include <cublas_v2.h>
 
 class network {
 public:
@@ -59,8 +59,8 @@ private:
     std::vector<float*> d_error;
     std::vector<float*> d_weight_gradients;
     std::vector<float*> d_bias_gradients;
-    std::vector<float*> d_weight_m; // First moment (Adam)
-    std::vector<float*> d_weight_v; // Second moment (Adam)
+    std::vector<float*> d_weight_m;
+    std::vector<float*> d_weight_v;
     std::vector<float*> d_bias_m;
     std::vector<float*> d_bias_v;
     std::vector<float*> d_gamma_m;
@@ -95,6 +95,7 @@ public:
     void load_model(const std::string& filename);
     void forward_propagate(const std::vector<std::vector<float>>& batch_inputs, bool training);
     void backpropagate(const std::vector<std::vector<float>>& batch_targets);
+    const std::vector<size_t>& get_layer_sizes() const { return m_number_of_neurons_per_layer; }
 };
 
 // CUDA kernel declarations
@@ -116,11 +117,11 @@ extern "C" void update_error_for_bn_on_gpu(float* error, float* gamma, float* va
 extern "C" void compute_delta_from_error_on_gpu(float* error, float* pre_act, float* delta,
                                                int batch_size, int num, int act_type);
 extern "C" void update_parameters_on_gpu(float* weights, float* weight_gradients, float* weight_velocity,
-                                         float* biases, float* bias_gradients, float* bias_velocity,
-                                         float* gammas, float* gamma_gradients,
-                                         float* betas, float* beta_gradients,
-                                         float learning_rate, float momentum,
-                                         int num_weights, int num, bool use_bn);
+                                        float* biases, float* bias_gradients, float* bias_velocity,
+                                        float* gammas, float* gamma_gradients,
+                                        float* betas, float* beta_gradients,
+                                        float learning_rate, float momentum,
+                                        int num_weights, int num, bool use_bn);
 extern "C" void apply_bn_backprop_correction_on_gpu(float* deltas, float* hats, float* gammas, float* gamma_grads, float* beta_grads, float* variances, float epsilon, int batch_size, int num);
 extern "C" void adam_update_on_gpu(float* weights, float* weight_gradients, float* m_weights, float* v_weights,
                                    float* biases, float* bias_gradients, float* m_biases, float* v_biases,

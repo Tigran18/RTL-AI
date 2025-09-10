@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\network\build\CMakeFiles\63c662d140a1c455be0f88052834c02e\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{686C3EC4-7B40-3A73-AF77-BFA23896BA25}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

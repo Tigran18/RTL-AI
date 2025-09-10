@@ -1,0 +1,10 @@
+^C:\USERS\HP\DOCUMENTS\SYNOPSYS\DIPLOMA_PROJECT\RTL-AI\NETWORK\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network -BC:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/build --check-stamp-file C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

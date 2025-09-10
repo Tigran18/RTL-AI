@@ -187,7 +187,7 @@ __global__ void adam_update_kernel(float* weights, float* weight_gradients, floa
 }
 
 extern "C" void fused_bias_activation_on_gpu(float* input, float* biases, float* output, int batch_size, int num, int act_type, float* pre_act) {
-    int blockSize = 256;
+    int blockSize = min(256, max(32, (batch_size * num + 31) / 32 * 32)); // Align to warp size
     int gridSize = (batch_size * num + blockSize - 1) / blockSize;
     fused_bias_activation_kernel<<<gridSize, blockSize>>>(input, biases, output, batch_size, num, act_type, pre_act);
 }

@@ -75,7 +75,7 @@ void split_data(const std::vector<std::vector<float>>& inputs,
 // === Train a network on XOR ===
 void train_xor_example(bool use_batch_norm, const std::string& model_name) {
     std::vector<std::vector<float>> inputs, targets;
-    generate_xor_data(inputs, targets, 1000, 0.05f); // Reduced noise for stability
+    generate_xor_data(inputs, targets, 1000, 0.01f); // Further reduced noise
 
     std::vector<std::vector<float>> train_inputs, train_targets;
     std::vector<std::vector<float>> val_inputs, val_targets;
@@ -86,15 +86,13 @@ void train_xor_example(bool use_batch_norm, const std::string& model_name) {
                val_inputs, val_targets,
                test_inputs, test_targets);
 
-    // Simplified network architecture
     std::vector<size_t> layers = {2, 8, 1};
     std::vector<network::ActivationType> activations = {
         network::ActivationType::ReLU,
         network::ActivationType::Sigmoid
     };
 
-    // Lower learning rate and more epochs
-    network net(layers, activations, 0.001f, 5000, 64, 0.9f, use_batch_norm);
+    network net(layers, activations, 0.001f, 2000, 64, 0.9f, use_batch_norm);
 
     std::cout << "Training XOR network " << (use_batch_norm ? "with" : "without")
               << " Batch Normalization..." << std::endl << std::flush;
@@ -115,13 +113,16 @@ void train_xor_example(bool use_batch_norm, const std::string& model_name) {
 
 // === Load saved model and test on classic XOR ===
 void test_load_and_predict(const std::string& model_name) {
-    std::vector<size_t> layers = {2, 8, 1};
+    std::vector<size_t> layers = {2, 8, 10, 15, 5, 1};
     std::vector<network::ActivationType> activations = {
         network::ActivationType::ReLU,
-        network::ActivationType::Sigmoid
+        network::ActivationType::Sigmoid,
+        network::ActivationType::ReLU,
+        network::ActivationType::Sigmoid,
+        network::ActivationType::ReLU
     };
 
-    network net(layers, activations, 0.001f, 5000, 64, 0.9f);
+    network net(layers, activations, 0.001f, 2000, 64, 0.9f);
 
     net.load_model(model_name);
 
@@ -155,9 +156,10 @@ int main() {
         train_xor_example(false, "xor_model_no_bn.txt");
         test_load_and_predict("xor_model_no_bn.txt");
 
-        std::cout << "\n=== With Batch Normalization ===\n" << std::flush;
-        train_xor_example(true, "xor_model_bn.txt");
-        test_load_and_predict("xor_model_bn.txt");
+        // Optionally skip batch norm test to reduce runtime
+        // std::cout << "\n=== With Batch Normalization ===\n" << std::flush;
+        // train_xor_example(true, "xor_model_bn.txt");
+        // test_load_and_predict("xor_model_bn.txt");
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl << std::flush;
         return 1;

@@ -1,4 +1,3 @@
-/home/tigranda1809/RTL AI/network/build/CMakeFiles/network.dir
-/home/tigranda1809/RTL AI/network/build/CMakeFiles/neural_network.dir
-/home/tigranda1809/RTL AI/network/build/CMakeFiles/edit_cache.dir
-/home/tigranda1809/RTL AI/network/build/CMakeFiles/rebuild_cache.dir
+C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/build/CMakeFiles/network_lib.dir
+C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/build/CMakeFiles/ZERO_CHECK.dir
