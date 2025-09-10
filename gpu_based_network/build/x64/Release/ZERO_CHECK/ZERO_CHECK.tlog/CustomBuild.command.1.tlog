@@ -1,0 +1,10 @@
+^C:\USERS\HP\DOCUMENTS\SYNOPSYS\DIPLOMA_PROJECT\NEW\RTL-AI\GPU_BASED_NETWORK\BUILD\CMAKEFILES\84E55AED6BE2E8AE889F6E217E296FD1\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/HP/Documents/Synopsys/Diploma_project/new/RTL-AI/gpu_based_network -BC:/Users/HP/Documents/Synopsys/Diploma_project/new/RTL-AI/gpu_based_network/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/HP/Documents/Synopsys/Diploma_project/new/RTL-AI/gpu_based_network/build/GPU_Network.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

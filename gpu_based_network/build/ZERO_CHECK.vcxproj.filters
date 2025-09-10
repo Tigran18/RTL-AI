@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\HP\Documents\Synopsys\Diploma_project\new\RTL-AI\gpu_based_network\build\CMakeFiles\84e55aed6be2e8ae889f6e217e296fd1\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{1F7BF668-C5FC-3929-9022-A09E4A42E16F}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

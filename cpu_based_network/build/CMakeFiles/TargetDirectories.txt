@@ -1,0 +1,3 @@
+C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/cpu_based_network/build/CMakeFiles/py_network.dir
+C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/cpu_based_network/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/cpu_based_network/build/CMakeFiles/ZERO_CHECK.dir

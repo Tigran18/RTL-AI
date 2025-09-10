@@ -1,3 +1,0 @@
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/build/CMakeFiles/network_lib.dir
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/HP/Documents/Synopsys/Diploma_project/RTL-AI/network/build/CMakeFiles/ZERO_CHECK.dir

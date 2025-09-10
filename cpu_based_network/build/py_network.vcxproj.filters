@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\cpu_based_network\src\network.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\cpu_based_network\python_bindings\py_network.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\HP\Documents\Synopsys\Diploma_project\RTL-AI\cpu_based_network\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{A6A851BF-A694-3415-8C4A-C4B2682B6226}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
